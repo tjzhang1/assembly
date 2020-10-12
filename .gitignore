@@ -1,0 +1,4 @@
+*.out
+*.o
+p0/xtimSort
+p0/xtstSort
