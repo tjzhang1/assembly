@@ -1,5 +1,8 @@
 *.out
 *.o
-p0/xtimSort
-p0/xtstSort
+xtim*
+xtst*
+xtest*
+xitest*
+out
 *.tar.gz
