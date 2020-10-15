@@ -53,8 +53,8 @@ mrgChains:
    ldrGT rb,[rb,gNxt]     //   rb=rb->next;
 
    mov curr,head          //keep track of current pos w/o losing head ptr
-   cmp lb,#0
-   cmpNE rb,#0
+   cmp lb,#0              //if(!lb
+   cmpNE rb,#0            //   || !rb)
    bEQ DONE               //   skip loop
    LOOP:
       ldr vl,[lb,gInt]       //update int value from lb
@@ -65,8 +65,8 @@ mrgChains:
       strGT rb,[curr,gNxt]   //else curr->next = rb;
       ldrGT rb,[rb,gNxt]     //   rb=rb->next;
       ldr curr,[curr,gNxt]   //curr=curr->next;
-      cmp lb,#0
-      cmpNE rb,#0
+      cmp lb,#0              //if(lb
+      cmpNE rb,#0            //   && rb)
    bNE LOOP                  //   continue loop
 
    DONE:
