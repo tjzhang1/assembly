@@ -13,7 +13,7 @@ void *mrgChains(void *lb, void *rb, uint gNxt, uint gInt)
 {
    //compare first element in order to set newBase
    //set newbase, increment lb or rb
-   //begin loop
+   //loop {
    //check if lb exists
    //   if lb doesn't exist, append rb
    //   break
@@ -25,6 +25,7 @@ void *mrgChains(void *lb, void *rb, uint gNxt, uint gInt)
    //   compare their values
    //   append lb or rb
    //   increment lb or rb
+   //}
    //return base pointer
 }
 Performs a sorted-list merge on chains lb and rb.
@@ -50,15 +51,11 @@ mrgChains:
    ldrLE lb,[lb,gNxt]     //   lb=lb->next;
    movGT head,rb          //else head = rb; (set head of sorted list)
    ldrGT rb,[rb,gNxt]     //   rb=rb->next;
-   
-   cmp lb,#0              //if(!lb)
-   strEQ rb,[head,gNxt]   //   head->next=rb;
-   cmp rb,#0              //if(!rb)
-   strEQ lb,[head,gNxt]   //   head->next=lb;
-   tst lb,rb              //if((lb & rb) == 0)
-   bEQ DONE               //   skip loop
 
    mov curr,head          //keep track of current pos w/o losing head ptr
+   cmp lb,#0
+   cmpNE rb,#0
+   bEQ DONE               //   skip loop
    LOOP:
       ldr vl,[lb,gInt]       //update int value from lb
       ldr vr,[rb,gInt]       //update int value from rb
@@ -68,15 +65,15 @@ mrgChains:
       strGT rb,[curr,gNxt]   //else curr->next = rb;
       ldrGT rb,[rb,gNxt]     //   rb=rb->next;
       ldr curr,[curr,gNxt]   //curr=curr->next;
-      cmp lb,#0              //if(!lb)
-      strEQ rb,[curr,gNxt]   //   curr->next=rb;
-      cmp rb,#0              //if(!rb)
-      strEQ lb,[curr,gNxt]   //   curr->next=lb;
-      tst lb,rb              //if((lb & rb) == 0)
-      bEQ DONE               //   break
-   b LOOP
-   DONE:
+      cmp lb,#0
+      cmpNE rb,#0
+   bNE LOOP                  //   continue loop
 
+   DONE:
+   cmp lb,#0              //if(!lb)
+   strEQ rb,[curr,gNxt]   //   curr->next=rb;
+   cmp rb,#0              //if(!rb)
+   strEQ lb,[curr,gNxt]   //   curr->next=lb;
    //epilogue:
    ldmIA SP!,{r4-r6}      //restore caller's variables
 bx LR
