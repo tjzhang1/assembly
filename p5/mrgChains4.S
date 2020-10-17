@@ -42,7 +42,7 @@ ASSUMES: input lists have at least one node, and NULL terminated
 mrgChains:
    //prologue:
    push {r4-r7}           //save caller's variables
-   mov lb,r0              //save r0 to make room for head
+   movs lb,r0             //save r0 to make room for head
    
    //body:
    ldr vl,[lb,gInt]       //load int value from lb
@@ -54,7 +54,7 @@ mrgChains:
       ldrLE lb,[lb,gNxt]  //   lb=lb->next;
       movGT head,rb       //else head = rb; (set head of sorted list)
       ldrGT rb,[rb,gNxt]  //   rb=rb->next;
-   mov curr,head          //keep track of current pos w/o losing head ptr
+   movs curr,head          //keep track of current pos w/o losing head ptr
    //check to make sure both lists have nodes left
    cmp lb,#0              
       ite NE              //if(!lb) skip loop;
