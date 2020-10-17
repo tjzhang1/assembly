@@ -76,13 +76,12 @@ mrgChains:
          cmpNE rb,#0         //   && rb)
    bNE LOOP                  //   continue loop
    //cleanup; at this pt exactly one chain has nodes, append to end of curr
+   //impossible for both to be NULL, so only necessary to check one
    DONE:
    cmp lb,#0              
-      it EQ               //if(!lb)
-      strEQ rb,[curr,gNxt]//   curr->next=rb;
-   cmp rb,#0              
-      it EQ               //if(!rb)
-      strEQ lb,[curr,gNxt]//   curr->next=lb;
+      ite EQ                 //if(!lb)
+      strEQ rb,[curr,gNxt]   //   curr->next=rb;
+      strNE lb,[curr,gNxt]   //else curr->next=lb;
    //epilogue:
    pop {r4-r7}            //restore caller's variables
 bx LR
