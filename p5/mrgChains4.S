@@ -41,7 +41,6 @@ mrgChains:
    #define head r7        //holds the head ptr of sorted list
    //prologue:
    push {r4-r7}           //save caller's variables
-   movs lb,r0             //save r0 to make room for head
    
    //body:
    ldr vl,[lb,gInt]       //load int value from lb
@@ -49,7 +48,6 @@ mrgChains:
    
    //initialize head ptr
    /*
-   corresponding C code:
       if(valLeft < valRight)
          head = lb;
       else
@@ -69,7 +67,6 @@ mrgChains:
    #define lbnext r7      //r7 now used for loading next value of lb
    //determine which chain (lb or rb) to increment
    /*
-   corresponding C code:
       if(valLeft < valRight) {
          lb = lb->next;
          rb = rb;  //must do this explicitly to maintain value
@@ -86,24 +83,40 @@ mrgChains:
 
    mvns mask,mask         //mask = (vl-vr < 0) ? 0x0:0xFFFFFFFF //(else mask)
    ands lb,mask           //lb = (vl-vr < 0) ? 0x0:lb
-   //make space for rbnext
-   #undef vl              //free up r4
-   #define rbnext r4      //r4 now used for loading next value of rb
+   //make space for rbnext by using vl, which isn't needed for now
+   #define rbnext r4      //r4 (=vl) overwritten for loading rb->next
    ldr rbnext,[rb,gNxt]   //prepare rb->next
    ands rbnext,mask       //rbnext = (vl-vr < 0) ? 0x0:rb->next
    orrs lb,lbnext         //lb = (vl-vr < 0) ? lb->next:lb
    orrs rb,rbnext         //rb = (vl-vr < 0) ? rb:rb->next
+   
+   #undef lbnext          //frees up r7
+   #undef rbnext          //frees up r4
+   #undef mask            //frees up r6
+   #define curr r6        //holds curr node of sorted list
+   mov curr,head          //keep track of current pos w/o losing head ptr
+   
+   //check to make sure both lists have nodes left
    /*
-   cmp vl,vr              
-      ittee LE            //if(valLeft <= valRight)
-      movLE head,lb       //   head = lb; (set head of sorted list)
-      ldrLE lb,[lb,gNxt]  //   lb=lb->next;
-      movGT head,rb       //else head = rb; (set head of sorted list)
-      ldrGT rb,[rb,gNxt]  //   rb=rb->next;
-
-   #define curr r7        //holds curr node of sorted list
-   movs curr,head          //keep track of current pos w/o losing head ptr
-
+      if(!(lb && rb))  <=>   if( !((lb<0||lb>0) && (rb<0||rb>0)) )
+         GOTO DONE;
+   */
+   #define lbstat r4      //holds if(lb) (was vl/rbnext)
+   #define rbstat r5      //holds if(rb) (was vr)
+   #define status r7      //holds if(lb && rb) (was lbnext)
+   asrs status,lb,#31     //status = (lb<0) ? 0xFFFFFFFF:0x0
+   rsbs lbstat,lb,#0      //lbstatus = -lb; used to check if(lb>0)
+   asrs lbstat,lbstat,#31 //lbstatus = (lb>0) ? 0xFFFFFFFF:0x0
+   orrs status,lbstat     //status = (lb<0||lb>0) ? 0xFFFFFFFF:0x0
+   #undef lbstat          //lbstat no longer needed, it is saved to status
+   #define mask r4
+   asrs mask,rb,#31       //mask = (rb<0) ? 0xFFFFFFFF:0x0
+   rsbs rbstat,rb,#0      //rbstatus = -rb; used to check if(rb>0)
+   asrs rbstat,rbstat,#31 //rbstatus = (rb>0) ? 0xFFFFFFFF:0x0
+   orrs rbstat,mask       //rbstatus = (rb<0||rb>0) ? 0xFFFFFFFF:0x0
+   ands status,rbstat     //status = (lb && rb) ?? 0xFFFFFFFF:0x0
+   bEQ DONE               //if (!status)   GOTO DONE
+   /*
    //check to make sure both lists have nodes left
    cmp lb,#0              
       ite NE              //if(!lb) skip loop;
@@ -133,6 +146,13 @@ mrgChains:
       it EQ               //if(!rb)
       strEQ lb,[curr,gNxt]//   curr->next=lb;
    */
+   DONE:
+   //cleanup; at this pt lb=0 or rb=0, but not both
+   //append remaining nodes to the end of curr
+   //since they are mutually exclusive, bitwise OR them together
+   orrs lb,rb             //lb = (lb) ? lb:rb
+   str lb,[curr,gNxt]     //curr->next = (lb) ? lb:rb
+   mov r0,head            //return head
    //epilogue:
    pop {r4-r7}            //restore caller's variables
 bx LR
