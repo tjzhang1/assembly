@@ -76,16 +76,16 @@ mrgChains:
       }
    */
    subs mask,vl,vr        //store vl-vr to calculate if (vl-vr)<0
-   asrs mask,mask,#31     //mask = (vl-vr < 0) ? 0xFFFFFFFF:0x0
+   //make space for rbnext by using vl, which isn't needed for now
+   #define rbnext r4      //r4 (=vl) overwritten for loading rb->next
    ldr lbnext,[lb,gNxt]   //prepare lb->next
+   ldr rbnext,[rb,gNxt]   //prepare rb->next
+   asrs mask,mask,#31     //mask = (vl-vr < 0) ? 0xFFFFFFFF:0x0
    ands lbnext,mask       //ldnext = (vl-vr < 0) ? lb->next:0x0
    ands rb,mask           //rb = (vl-vr < 0) ? rb:0x0
 
    mvns mask,mask         //mask = (vl-vr < 0) ? 0x0:0xFFFFFFFF //(else mask)
    ands lb,mask           //lb = (vl-vr < 0) ? 0x0:lb
-   //make space for rbnext by using vl, which isn't needed for now
-   #define rbnext r4      //r4 (=vl) overwritten for loading rb->next
-   ldr rbnext,[rb,gNxt]   //prepare rb->next
    ands rbnext,mask       //rbnext = (vl-vr < 0) ? 0x0:rb->next
    orrs lb,lbnext         //lb = (vl-vr < 0) ? lb->next:lb
    orrs rb,rbnext         //rb = (vl-vr < 0) ? rb:rb->next
