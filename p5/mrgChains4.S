@@ -1,12 +1,3 @@
-#define head r0           //holds the head ptr of sorted list
-#define rb r1             //holds the top of right chain
-#define gNxt r2           //holds offset in bytes to ptr to next node
-#define gInt r3           //holds offset in bytes to value of node
-#define vl r4             //holds val of lb (vl=valLeft)
-#define vr r5             //holds val of rb (vr=valRight)
-#define curr r6           //holds curr node of sorted list
-#define lb r7             //holds the top of left chain
-
 /*
 r0                    r0        r1       r2         r3
 void *mrgChains(void *lb, void *rb, uint gNxt, uint gInt)
@@ -40,6 +31,14 @@ ASSUMES: input lists have at least one node, and NULL terminated
 .global mrgChains
 
 mrgChains:
+   #define lb r0          //holds the top of left chain
+   #define rb r1          //holds the top of right chain
+   #define gNxt r2        //holds offset in bytes to ptr to next node
+   #define gInt r3        //holds offset in bytes to value of node
+   #define vl r4          //holds val of lb (vl=valLeft)
+   #define vr r5          //holds val of rb (vr=valRight)
+   #define mask r6        //used as a status reg for pseudo-predication
+   #define head r7        //holds the head ptr of sorted list
    //prologue:
    push {r4-r7}           //save caller's variables
    movs lb,r0             //save r0 to make room for head
@@ -47,7 +46,19 @@ mrgChains:
    //body:
    ldr vl,[lb,gInt]       //load int value from lb
    ldr vr,[rb,gInt]       //load int value from rb
+   
    //initialize head ptr
+   subs mask,vl,vr        //store vl-vr to calculate if (vl-vr)<0
+   asrs mask,mask,#31     //mask = (vl-vr < 0) ? 0xFFFFFFFF:0x0
+   movs head,lb           //copy lb into head so we don't lose lb's value
+   ands head,mask         //head = (vl-vr < 0) ? lb:0x0
+   mvns mask,mask         //mask = (vl-vr < 0) ? 0x0:0xFFFFFFFF //(else mask)
+   ands mask,rb           //mask = (vl-vr < 0) ? 0x0:rb
+   orrs head,mask         //head = (vl-vr < 0) ? lb:rb
+   
+   #undefine mask         //frees up r6
+   #define curr r6        //holds curr node of sorted list
+   /*
    cmp vl,vr              
       ittee LE            //if(valLeft <= valRight)
       movLE head,lb       //   head = lb; (set head of sorted list)
@@ -83,6 +94,7 @@ mrgChains:
    cmp rb,#0              
       it EQ               //if(!rb)
       strEQ lb,[curr,gNxt]//   curr->next=lb;
+   */
    //epilogue:
    pop {r4-r7}            //restore caller's variables
 bx LR
