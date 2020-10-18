@@ -48,6 +48,13 @@ mrgChains:
    ldr vr,[rb,gInt]       //load int value from rb
    
    //initialize head ptr
+   /*
+   corresponding C code:
+      if(valLeft < valRight)
+         head = lb;
+      else
+         head = rb;
+   */
    subs mask,vl,vr        //store vl-vr to calculate if (vl-vr)<0
    asrs mask,mask,#31     //mask = (vl-vr < 0) ? 0xFFFFFFFF:0x0
    movs head,lb           //copy lb into head so we don't lose lb's value
@@ -56,8 +63,36 @@ mrgChains:
    ands mask,rb           //mask = (vl-vr < 0) ? 0x0:rb
    orrs head,mask         //head = (vl-vr < 0) ? lb:rb
    
-   #undefine mask         //frees up r6
-   #define curr r6        //holds curr node of sorted list
+   mov r12,head           //frees up r7
+   #undef head
+   #define head r12       //new storage for head ptr is r12
+   #define lbnext r7      //r7 now used for loading next value of lb
+   //determine which chain (lb or rb) to increment
+   /*
+   corresponding C code:
+      if(valLeft < valRight) {
+         lb = lb->next;
+         rb = rb;  //must do this explicitly to maintain value
+      } else {
+         lb = lb;
+         rb = rb->next; 
+      }
+   */
+   subs mask,vl,vr        //store vl-vr to calculate if (vl-vr)<0
+   asrs mask,mask,#31     //mask = (vl-vr < 0) ? 0xFFFFFFFF:0x0
+   ldr lbnext,[lb,gNxt]   //prepare lb->next
+   ands lbnext,mask       //ldnext = (vl-vr < 0) ? lb->next:0x0
+   ands rb,mask           //rb = (vl-vr < 0) ? rb:0x0
+
+   mvns mask,mask         //mask = (vl-vr < 0) ? 0x0:0xFFFFFFFF //(else mask)
+   ands lb,mask           //lb = (vl-vr < 0) ? 0x0:lb
+   //make space for rbnext
+   #undef vl              //free up r4
+   #define rbnext r4      //r4 now used for loading next value of rb
+   ldr rbnext,[rb,gNxt]   //prepare rb->next
+   ands rbnext,mask       //rbnext = (vl-vr < 0) ? 0x0:rb->next
+   orrs lb,lbnext         //lb = (vl-vr < 0) ? lb->next:lb
+   orrs rb,rbnext         //rb = (vl-vr < 0) ? rb:rb->next
    /*
    cmp vl,vr              
       ittee LE            //if(valLeft <= valRight)
@@ -65,7 +100,10 @@ mrgChains:
       ldrLE lb,[lb,gNxt]  //   lb=lb->next;
       movGT head,rb       //else head = rb; (set head of sorted list)
       ldrGT rb,[rb,gNxt]  //   rb=rb->next;
+
+   #define curr r7        //holds curr node of sorted list
    movs curr,head          //keep track of current pos w/o losing head ptr
+
    //check to make sure both lists have nodes left
    cmp lb,#0              
       ite NE              //if(!lb) skip loop;
