@@ -6,3 +6,4 @@ xtest*
 xitest*
 out
 *.tar.gz
+**/p5/Makefile
