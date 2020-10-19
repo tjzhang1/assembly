@@ -11,22 +11,39 @@
 r0                    r0        r1       r2         r3
 void *mrgChains(void *lb, void *rb, uint gNxt, uint gInt)
 {
-   //compare first element in order to set newBase
-   //set newbase, increment lb or rb
-   //loop {
-   //check if lb exists
-   //   if lb doesn't exist, append rb
-   //   break
-   //check if rb exists
-   //   if rb doesn't exist, append lb
-   //   break
-   //(lb and rb can't both =NULL because we always append a node one at a time)
-   //if both lb and rb exist
-   //   compare their values
-   //   append lb or rb
-   //   increment lb or rb
-   //}
-   //return base pointer
+   void *head, *curr;
+   int valLeft, valRight;
+   
+   if(valLeft < valRight)
+   {
+      head = lb;
+      lb = lb->next;
+   }
+   else
+   {
+      head = rb;
+      rb = rb->next;
+   }
+   curr = head;
+   while(lb && rb)
+   {
+      if(valLeft < valRight)
+      {
+         curr->next = lb;
+         lb = lb->next;
+      }
+      else
+      {
+         curr->next = rb;
+         rb = rb->next;
+      }
+      curr = curr->next;
+   }
+   if(lb)
+      curr->next=lb;
+   else
+      curr->next=rb;
+   return head;
 }
 Performs a sorted-list merge on chains lb and rb.
 RETURNS: base of merged sort-order list, assuming lb and rb sorted
@@ -72,8 +89,7 @@ mrgChains:
    DONE:
    cmp lb,#0              //if(!lb)
    strEQ rb,[curr,gNxt]   //   curr->next=rb;
-   cmp rb,#0              //if(!rb)
-   strEQ lb,[curr,gNxt]   //   curr->next=lb;
+   strNE lb,[curr,gNxt]   //else curr->next=lb;
    //epilogue:
    ldmIA SP!,{r4-r6}      //restore caller's variables
 bx LR
