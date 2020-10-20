@@ -35,10 +35,10 @@ xtestA : tstSortA.o mrgSortA.o mrgChainsA.o
 	$(CC) $(CCFLAGS) $(CCFA) -o $@ tstSortA.o mrgSortA.o mrgChainsA.o
 xtimeA : timSortA.o mrgSortAT.o mrgChainsAT.o
 	$(CC) $(CCTFLAGS) $(CCFA) -o $@ timSortA.o mrgSortAT.o mrgChainsAT.o
-xtestF : tstSort7.o mrgSort7.o mrgChainsF.o
-	$(CC) $(CCFLAGS) $(CCF7) -o $@ tstSort7.o mrgSort7.o mrgChainsF.o
-xtimeF : timSort7.o mrgSort7T.o mrgChainsFT.o
-	$(CC) $(CCTFLAGS) $(CCF7) -o $@ timSort7.o mrgSort7T.o mrgChainsFT.o
+xtestF : tstSortA.o mrgSortA.o mrgChainsF.o
+	$(CC) $(CCFLAGS) $(CCFA) -o $@ tstSortA.o mrgSortA.o mrgChainsF.o
+xtimeF : timSortA.o mrgSortAT.o mrgChainsFT.o
+	$(CC) $(CCTFLAGS) $(CCFA) -o $@ timSortA.o mrgSortAT.o mrgChainsFT.o
 
 mrgSort4.o : $(SRCd)/mrgSort.c
 	$(CC) $(CCFLAGS) $(CCF4) -c -o $@ $(SRCd)/mrgSort.c
@@ -79,9 +79,9 @@ mrgChainsA.o : mrgChainsA.S
 mrgChainsAT.o : mrgChainsA.S
 	$(CC) $(CCTFLAGS) $(CCFA) -o $@ -c mrgChainsA.S
 mrgChainsF.o : mrgChainsF.S
-	$(CC) $(CCFLAGS) $(CCF7) -c mrgChainsF.S
+	$(CC) $(CCFLAGS) $(CCFA) -c mrgChainsF.S
 mrgChainsFT.o : mrgChainsF.S
-	$(CC) $(CCTFLAGS) $(CCF7) -o $@ -c mrgChainsF.S
+	$(CC) $(CCTFLAGS) $(CCFA) -o $@ -c mrgChainsF.S
 
 xtime : timSort.o mrgSortT.o
 	$(CC) $(CCTFLAGS) -o $@ timSort.o mrgSortT.o
