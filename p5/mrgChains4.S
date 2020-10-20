@@ -121,7 +121,7 @@ mrgChains:
    rsbs rbstat,rb,#0      //rbstatus = -rb; used to check if(rb>0)
    asrs rbstat,rbstat,#31 //rbstatus = (rb>0) ? 0xFFFFFFFF:0x0
    orrs rbstat,mask       //rbstatus = (rb<0||rb>0) ? 0xFFFFFFFF:0x0
-   ands status,rbstat     //status = (lb && rb) ?? 0xFFFFFFFF:0x0
+   tst status,rbstat      //status = (lb && rb) ?? 0xFFFFFFFF:0x0
    bEQ DONE               //if (!status)   GOTO DONE
    #undef mask            //free r4 for vl
    #undef status          //free r7
@@ -190,7 +190,7 @@ mrgChains:
       rsbs rbstat,rb,#0      //rbstatus = -rb; used to check if(rb>0)
       asrs rbstat,rbstat,#31 //rbstatus = (rb>0) ? 0xFFFFFFFF:0x0
       orrs rbstat,mask       //rbstatus = (rb<0||rb>0) ? 0xFFFFFFFF:0x0
-      ands status,rbstat     //status = (lb && rb) ?? 0xFFFFFFFF:0x0
+      tst status,rbstat      //status = (lb && rb) ?? 0xFFFFFFFF:0x0
       #undef mask            //frees r4 for vl
       #undef rbstat          //frees r5 for vr
       #undef status          //free r7
