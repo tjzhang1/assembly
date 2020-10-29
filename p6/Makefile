@@ -37,7 +37,7 @@ OBJ0 = tstSortC.o $(mrgF).o
 
 force_build:
 xtstSortC : tstSortC.o force_build
-	$(CC) $(CCFLAGS) -o $@ tstSortC.o $(mrgF).c mrgChains4.S
+	$(CC) $(CCFLAGS) -o $@ tstSortC.o $(mrgF).c 
 xtimSortC : timSort.o  force_build
 	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).c
 
@@ -53,6 +53,10 @@ clean :
 kill :
 	- rm -f $(OBJ) $(OBJ0) timSort.o mrgSortT.o \
                 xtstSort xtimSort xtstSortC xtimSortC
+
+tst : xtstSortC xtimSortC
+	./xtstSortC 1000000 
+	./xtimSortC 1000000
 #
 # This is an example of a specific rule for building tester.o given tester.c
 #

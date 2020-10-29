@@ -4,78 +4,118 @@
    #include <assert.h>
 #endif
 #include "word.h"
-// #define CHAINS 1
+// #define THUMB 1
 
+#ifdef THUMB
 void *mrgChains4(void *lb, void *rb, unsigned int gNxt, unsigned int gInt);
+#endif
 
-word_t *mergeLists
+word_t *mrgChainsC
 (
    word_t *lb,      /* address of left base node */
-   word_t *rb       /* address of right base node */
+   word_t *rb,      /* address of right base node */
+   word_t *endL,    //addr of end node of lb
+   word_t *endR,    //addr of end node of rb
+   word_t **ML      //OUT: points to end of merged list
 )
 /*
  * Given two sorted lists started by lb & rb.
  * NOTE: In my implementation, input and output lists NULL terminated.
- * RETURNS: base ptr for merged  and sorted list
+ * RETURNS: base ptr for merged and sorted list, sets ML to last node
  */
 {
-   /*ptrs to top of left and right buffers*/
    /*ptrs for base of new list, current node, and next node*/
    word_t *newListHead, *curr;
-   /*used to count how many elements are left in lb and rb*/
-   register unsigned int lbVal, rbVal;
-
-   if(!rb)
-      return lb;
-   if(!lb)
-      return rb;
+   int lbVal, rbVal;   //holds top val of lb and rb
+   int endValL, endValR;   //holds last val of lb and rb
+   //ASSUMES: lb,rb,endL,endR non-NULL due to mrgSortR
    lbVal = lb->len;
    rbVal = rb->len;
+   endValL = endL->len;
+   endValR = endR->len;
+   //Set ML: the last of merged list must be either endL or endR
+   if(endValL < endValR)
+      *ML = endR;
+   else
+      *ML = endL;
+   //if greatest val in lb < smallest val in rb, append rb to lb
+   if(endValL < rbVal)
+   {
+      endL->next=rb;
+      return lb;
+   }
+   //if greatest val in rb < smallest val in lb, append lb to rb
+   else if (endValR < lbVal)
+   {
+      endR->next=lb;
+      return rb;
+   } 
    /*initialize first item in new list by comparing left and right*/
    if(lbVal < rbVal)
    {
       newListHead = lb; /*initialize the base ptr for new list*/
       lb = lb->next;    /*increment the top of the left buffer*/
-      lbVal = (lb) ? lb->len:lbVal;
+      if(!lb)           //if lb empty,
+      {
+         newListHead->next=rb;   //append rb
+         return newListHead;     //return newList
+      }
+      lbVal = lb->len;  //otherwise, update lbVal
    }
    else
    {
       newListHead = rb; /*initialize the base ptr for new list*/
-      rb = rb->next; /*increment the top of the right buffer*/
-      rbVal = (rb) ? rb->len:rbVal;
+      rb = rb->next;    /*increment the top of the right buffer*/
+      if(!rb)           //if rb empty,
+      {
+         newListHead->next=lb;   //append lb
+         return newListHead;     //return newList
+      }
+      rbVal = rb->len;  //otherwise, update rbVal
    }
+   curr = newListHead;
    /*comparison loop, using both lb and rb*/
-   for(curr=newListHead; lb&&rb; curr=curr->next)
+   while(1)
    {
       /*compare the first item in the left to the first item in the right*/
       if(lbVal < rbVal)
       {
-         curr->next = lb;
-         lb = lb->next;
-         lbVal = (lb) ? lb->len:lbVal;
+         curr->next = lb;     //next node is lb
+         curr = lb;           //curr=curr->next
+         lb = lb->next;       //increment lb
+         if(!lb)              //if lb empty,
+         {
+            curr->next=rb;       //append rb
+            return newListHead;
+         }
+         lbVal = lb->len;  //otherwise, update lbVal
       }
       /*otherwise, set the first item in right as the first in new list*/
       else
       {
-         curr->next = rb;
-         rb = rb->next;
-         rbVal = (rb) ? rb->len:rbVal;
+         curr->next = rb;     //next node is rb
+         curr = rb;           //curr=curr->next
+         rb = rb->next;       //increment rb
+         if(!rb)              //if rb empty,
+         {
+            curr->next=lb;       //append lb
+            return newListHead;
+         }
+         rbVal = rb->len;  //otherwise, update rbVal
       }
-   }
-
-   if(lb)
-      curr->next=lb;
-   else
-      curr->next=rb;
-
-   return newListHead;
+   } //end while
 }
 
-
-word_t *mrgSortR    /* RETURNS: base of greatest-to-least ->len sorted list */
+/*
+ * Recursive function:
+ */
+word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
 (                   /*          using merge sort, so O( N log2(N) )         */
    unsigned int N,  /* number of nodes in list ub */
-   word_t *ub,      /* base ptr for N nodes, not necessarily NULL-terminated */
+   word_t *bp,      /* base ptr for N nodes, not necessarily NULL-terminated */
+   unsigned long gNxt,
+   unsigned long gI,
+   word_t **ML,     /* OUT: I used this to point last node in merged list */
    word_t **UB      /* OUT: *UB set to address of n+1 node, which is unsorted */
 )
 /*
@@ -84,32 +124,42 @@ word_t *mrgSortR    /* RETURNS: base of greatest-to-least ->len sorted list */
  * RETURNS: base ptr of list sorted by ->len.
  */
 {
-   if(N == 1) /*base case*/
+   if(N == 1) //base case, sorted
    {
       /*increment *UB so it is always pointing to the next unsorted pos*/
-      *UB = ub->next;
-         ub->next = NULL;
-      /*return ub because a 1 length list is sorted*/
-      return ub;
+      *UB = bp->next;
+      //last node in list is only node in list, bp
+      *ML = bp;
+      //null terminate
+      bp->next = NULL;
+      return bp;
    }
-   //ub is always non-NULL and N>0 thanks to wrapper function
+   //bp is always non-NULL and N>0 thanks to wrapper function
    word_t *lb, *rb;
+   word_t *endL, *endR;  //ptrs to last nodes of lb and rb
    /*initialize lengths of left and right buffers for splitting*/
-   register int leftHalf=(N>>1), rightHalf = N-leftHalf;
+   unsigned int leftHalf=(N>>1), rightHalf = N-leftHalf;
    /*mrgSort on left nodes*/
-   lb = mrgSortR(leftHalf, ub, &rb); /*this will set rb to next unsorted spot*/
-   /*mrgSort on right nodes, utilizing the new UB value from prev mrgSort*/
-   rb = mrgSortR(rightHalf, rb, UB);
-   /*return mergeLists on left and right*/
-   #ifdef CHAINS
-//      return mrgChains(leftHalf, rightHalf, lb, rb);
+   lb = mrgSortRC(leftHalf,bp,gNxt,gI,&endL,&rb);
+   //rb set to next unsorted spot
+   //endL set to last node in lb
+   /*mrgSort on right nodes, utilizing the new rb value from prev mrgSort*/
+   rb = mrgSortRC(rightHalf,rb,gNxt,gI,&endR,UB);
+   //UB updated to next unsorted spot
+   //endR set to last node in rb
+   
+   //return mergeLists on left and right
+   #ifdef THUMB
       return mrgChains4(lb,rb,0,0);
    #else
-      return mergeLists(lb,rb);
+      return mrgChainsC(lb,rb,endL,endR,ML);
    #endif
 }
 
-word_t *mrgSort(word_t *ub, int a, int b) /* required ABI, wraps recursive mrgSort */
+/*
+ * Wrapper function
+ */
+word_t *mrgSort(word_t *bp, unsigned int gNxt, unsigned int gI)
 /*
  * NOTE: mrgSortFast is not recursive: the optimized mrgSort above handles
  *       the recursion while passing extra information (not of interest to
@@ -119,13 +169,13 @@ word_t *mrgSort(word_t *ub, int a, int b) /* required ABI, wraps recursive mrgSo
  *          destroyed by sort.
  */
 {
-   if(ub) /*ensure there's at least 1 element*/
+   if(bp) /*ensure there's at least 1 element*/
    {
-      register int N=1, prevLen=ub->len, sorted=1;
-      word_t *curr, *UB=ub;
+      register int N=1, prevLen=bp->len, sorted=1;
+      word_t *curr, *UB=NULL, *ML=NULL;
 
       /*find length of list and determine whether it's sorted already*/
-      for(curr=ub->next; curr; curr=curr->next)
+      for(curr=bp->next; curr; curr=curr->next)
       {
          register int currLen = curr->len;
          sorted &= (prevLen <= currLen); /*remains 1 if sorted, 0 if not*/
@@ -135,9 +185,9 @@ word_t *mrgSort(word_t *ub, int a, int b) /* required ABI, wraps recursive mrgSo
       }
       /*if found to be sorted, return*/
       if(sorted)
-         return(ub);
+         return(bp);
       /*otherwise, sort*/
-      return mrgSortR(N, ub, &UB);
+      return mrgSortRC(N, bp, gNxt, gI, &ML, &UB);
    }
-   return ub;
+   return bp;
 }
