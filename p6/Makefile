@@ -9,7 +9,7 @@
 ARCH=armv4t
 CC = gcc
 CCFLAGS = -Wall -mthumb -g
-CCTFLAGS = -Wall -O3  -march=$(ARCH) -mthumb -mfloat-abi=softfp 
+CCTFLAGS = -Wall -O3  -march=$(ARCH) -mthumb -mfloat-abi=softfp
 # uncomment if needed debug, but don't leave it this way!
 #ARCH=armv7-a    # uncomment to debug, but don't leave!
 #CCFLAGS = -Wall -mthumb -g
@@ -43,7 +43,7 @@ xtimSortC : timSort.o  force_build
 
 xtstSort : $(OBJ)
 	$(CC) $(CCFLAGS) -o $@ $(OBJ)
-xtimSort : timSort.o mrgSortT.o 
+xtimSort : timSort.o mrgSortT.o
 	$(CC) $(CCTFLAGS) -o $@ timSort.o mrgSortT.o
 #
 # This rules remove object and executables when they are no longer needed
