@@ -22,8 +22,8 @@ CCTFLAGS = -Wall -O3  -march=$(ARCH) -mthumb -mfloat-abi=softfp
 #
 # Use macros to give paths that might change
 #
-#SRCd = ./
-SRCd = /home/whaley/classes/ARMF20/p6_mrgSort
+SRCd = ./
+#SRCd = /home/whaley/classes/ARMF20/p6_mrgSort
 #
 # Override this make variable on commandline to try different C/asm codes
 #
@@ -37,7 +37,7 @@ OBJ0 = tstSortC.o $(mrgF).o
 
 force_build:
 xtstSortC : tstSortC.o force_build
-	$(CC) $(CCFLAGS) -o $@ tstSortC.o $(mrgF).c
+	$(CC) $(CCFLAGS) -o $@ tstSortC.o $(mrgF).c mrgChains4.S
 xtimSortC : timSort.o  force_build
 	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).c
 

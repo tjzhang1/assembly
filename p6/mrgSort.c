@@ -6,6 +6,8 @@
 #include "word.h"
 #define CHAINS 1
 
+void *mrgChains4(void *lb, void *rb, unsigned int gNxt, unsigned int gInt);
+
 word_t *mergeLists
 (
    unsigned int nL, /* # of nodes in unsorted list lb (left base) */
@@ -194,7 +196,8 @@ word_t *mrgSortR    /* RETURNS: base of greatest-to-least ->len sorted list */
    rb = mrgSortR(rightHalf, rb, UB);
    /*return mergeLists on left and right*/
    #if CHAINS
-      return mrgChains(leftHalf, rightHalf, lb, rb);
+//      return mrgChains(leftHalf, rightHalf, lb, rb);
+      return mrgChains4(lb,rb,0,0);
    #else
       return mergeLists(leftHalf,rightHalf,lb,rb);
    #endif
