@@ -53,7 +53,7 @@ ASSUMES: input lists have at least one node, and NULL terminated
 .text
 .arm
 .syntax unified
-.local DONE,LOOP,ELSE1,ELSE2,QRET1,QRET2
+.local DONE1,DONE2,LOOP,ELSE1,ELSE2,QRET1,QRET2
 .global mrgChains
 
 #define FSZ 4*6        //6 regs stored
@@ -125,50 +125,46 @@ mrgChains:
    //r7: lb
    //r8: endL
    //r9: endR
-/*
+   /*
+      Initialize base pointer head
+   */
    cmp vl,vr              //if(valLeft <= valRight)
       bGT ELSE1
-      mov head,lb         //   head = lb; (set head of sorted list)
+      movs head,lb        //   head = lb; (set head of sorted list)
       ldr lb,[lb,gNxt]    //   lb=lb->next; (increment lb)
-      mov curr,head       //   keep track of current pos w/o losing head ptr
+      movs curr,head      //   keep track of current pos w/o losing head ptr
       cmp lb,#0           //   if(!lb)
-      bEQ DONE            //      skip loop
+      bEQ DONE1           //      skip loop
       ldr vl,[lb,gInt]    //   else update int value from lb
       b LOOP              //   begin loop
    ELSE1:                 //else if(valLeft > valRight)
-      mov head,rb         //   head = rb; (set head of sorted list)
+      movs head,rb        //   head = rb; (set head of sorted list)
       ldr rb,[rb,gNxt]    //   rb=rb->next; (increment rb)
-      mov curr,head       //   keep track of current pos w/o losing head ptr
+      movs curr,head      //   keep track of current pos w/o losing head ptr
       cmp rb,#0           //   if(!rb)
-      bEQ DONE            //      skip loop
+      bEQ DONE2           //      skip loop
       ldr vr,[rb,gInt]    //   else update int value from rb, begin loop
 
    LOOP:
       cmp vl,vr              //if(valLeft <= valRight)
          bGT ELSE2
          str lb,[curr,gNxt]  //   set nxt node in sorted list = lb
-         mov curr,lb         //   curr = lb; (curr=curr->next)
+         movs curr,lb        //   curr = lb; (curr=curr->next)
          ldr lb,[lb,gNxt]    //   lb=lb->next;
          cmp lb,#0           //   if(!lb)
-         bEQ DONE            //      break;
+         bEQ DONE1           //      break;
          ldr vl,[lb,gInt]    //   else update int value from lb
          b LOOP              //      continue;
       ELSE2:                 //else if(valLeft > valRight)
          str rb,[curr,gNxt]  //   set nxt node in sorted list = rb
-         mov curr,rb         //   curr = rb; (curr=curr->next)
+         movs curr,rb        //   curr = rb; (curr=curr->next)
          ldr rb,[rb,gNxt]    //   rb=rb->next;
          cmp rb,#0           //   if(!rb)
-         bEQ DONE            //      break;
+         bEQ DONE2           //      break;
          ldr vr,[rb,gInt]    //   else update int value from rb
    b LOOP                    //      continue;
 
-   DONE:
-   //cleanup; at this pt lb=0 or rb=0, but not both
-   //append remaining nodes to the end of curr
-   //since they are mutually exclusive, bitwise OR them together
-   orr lb,rb              //lb = (lb) ? lb:rb
-   str lb,[curr,gNxt]     //curr->next = (lb) ? lb:rb
-*/
+
    //epilogue:
    pop {r4-r9}      //restore caller's variables
 bx LR
@@ -200,3 +196,27 @@ QRET2:  //occurs if(max(lb) <= min(rb))
    str rb,[endL,gNxt]     //append rb to end of lb
    pop {r4-r9}      //restore caller's variables
 bx LR                     //return lb
+
+DONE1:  //occurs if(!lb)
+   #define rb r1          //holds the top of right chain
+   #define gNxt r2        //holds offset in bytes to ptr to next node
+   #define ML r4          //updated to point to last node
+   #define curr r6        //holds curr node of sorted list
+   #define endR r9        //holds last node of rb
+   ldr ML,[SP,arg6]       //load ML from stack
+   mov r5,endR            //mov endR from higher register
+   str r5,[ML]            //*ML = endR
+   str rb,[curr,gNxt]     //append rb to current node
+bx LR
+
+DONE2:  //occurs if(!rb)
+   #define gNxt r2        //holds offset in bytes to ptr to next node
+   #define ML r4          //updated to point to last node
+   #define curr r6        //holds curr node of sorted list
+   #define lb r7          //holds the top of left chain
+   #define endL r8        //holds last node of lb
+   ldr ML,[SP,arg6]       //load ML from stack
+   mov r5,endL            //mov endL from higher register
+   str r5,[ML]            //*ML = endL
+   str lb,[curr,gNxt]     //append lb to current node
+bx LR
