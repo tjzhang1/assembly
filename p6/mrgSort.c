@@ -7,9 +7,17 @@
 // #define THUMB 1
 
 #ifdef THUMB
-void *mrgChains4(void *lb, void *rb, unsigned int gNxt, unsigned int gInt);
-#endif
-
+void *mrgChains
+(
+   void *lb,
+   void *rb,
+   unsigned int gNxt,
+   unsigned int gInt,
+   void *endL,
+   void *endR,
+   void *ML
+);
+#else
 word_t *mrgChainsC
 (
    word_t *lb,      /* address of left base node */
@@ -33,20 +41,17 @@ word_t *mrgChainsC
    rbVal = rb->len;
    endValL = endL->len;
    endValR = endR->len;
-   //Set ML: the last of merged list must be either endL or endR
-   if(endValL < endValR)
-      *ML = endR;
-   else
-      *ML = endL;
-   //if greatest val in lb < smallest val in rb, append rb to lb
-   if(endValL < rbVal)
+   //if greatest val in lb <= smallest val in rb, append rb to lb
+   if(endValL <= rbVal)
    {
+      *ML = endR;
       endL->next=rb;
       return lb;
    }
-   //if greatest val in rb < smallest val in lb, append lb to rb
-   else if (endValR < lbVal)
+   //if greatest val in rb <= smallest val in lb, append lb to rb
+   else if (endValR <= lbVal)
    {
+      *ML = endL;
       endR->next=lb;
       return rb;
    } 
@@ -57,6 +62,7 @@ word_t *mrgChainsC
       lb = lb->next;    /*increment the top of the left buffer*/
       if(!lb)           //if lb empty,
       {
+         *ML = endR;
          newListHead->next=rb;   //append rb
          return newListHead;     //return newList
       }
@@ -68,6 +74,7 @@ word_t *mrgChainsC
       rb = rb->next;    /*increment the top of the right buffer*/
       if(!rb)           //if rb empty,
       {
+         *ML = endL;
          newListHead->next=lb;   //append lb
          return newListHead;     //return newList
       }
@@ -85,6 +92,7 @@ word_t *mrgChainsC
          lb = lb->next;       //increment lb
          if(!lb)              //if lb empty,
          {
+            *ML = endR;
             curr->next=rb;       //append rb
             return newListHead;
          }
@@ -98,6 +106,7 @@ word_t *mrgChainsC
          rb = rb->next;       //increment rb
          if(!rb)              //if rb empty,
          {
+            *ML = endL;
             curr->next=lb;       //append lb
             return newListHead;
          }
@@ -105,6 +114,7 @@ word_t *mrgChainsC
       }
    } //end while
 }
+#endif
 
 /*
  * Recursive function:
@@ -150,7 +160,7 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
    
    //return mergeLists on left and right
    #ifdef THUMB
-      return mrgChains4(lb,rb,0,0);
+      return mrgChains(lb,rb,gNxt,gI,endL,endR,ML);
    #else
       return mrgChainsC(lb,rb,endL,endR,ML);
    #endif

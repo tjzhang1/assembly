@@ -9,7 +9,7 @@
 ARCH=armv4t
 CC = gcc
 CCFLAGS = -Wall -mthumb -g
-CCTFLAGS = -Wall -O3  -march=$(ARCH) -mthumb -mfloat-abi=softfp
+CCTFLAGS = -Wall -O3  -march=$(ARCH) -mthumb -mfloat-abi=softfp 
 # uncomment if needed debug, but don't leave it this way!
 #ARCH=armv7-a    # uncomment to debug, but don't leave!
 #CCFLAGS = -Wall -mthumb -g
@@ -37,14 +37,14 @@ OBJ0 = tstSortC.o $(mrgF).o
 
 force_build:
 xtstSortC : tstSortC.o force_build
-	$(CC) $(CCFLAGS) -o $@ tstSortC.o $(mrgF).c 
+	$(CC) $(CCFLAGS) -o $@ tstSortC.o $(mrgF).c
 xtimSortC : timSort.o  force_build
 	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).c
 
-xtstSort : $(OBJ)
-	$(CC) $(CCFLAGS) -o $@ $(OBJ)
-xtimSort : timSort.o mrgSortT.o
-	$(CC) $(CCTFLAGS) -o $@ timSort.o mrgSortT.o
+xtstSort : tstSort.o $(mrgF).S
+	$(CC) $(CCFLAGS) -o $@ tstSort.o $(mrgF).S
+xtimSort : timSort.o $(mrgF).S
+	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).S
 #
 # This rules remove object and executables when they are no longer needed
 #
@@ -53,10 +53,11 @@ clean :
 kill :
 	- rm -f $(OBJ) $(OBJ0) timSort.o mrgSortT.o \
                 xtstSort xtimSort xtstSortC xtimSortC
-
 tst : xtstSortC xtimSortC
-	./xtstSortC 1000000 
+	./xtstSortC 1000000
 	./xtimSortC 1000000
+
+
 #
 # This is an example of a specific rule for building tester.o given tester.c
 #
