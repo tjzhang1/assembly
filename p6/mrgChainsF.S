@@ -6,9 +6,9 @@ void *mrgChains
    void *rb,              //r1
    uint gNxt,             //r2
    uint gInt,             //r3
-   void *endL,            //SP[0]
-   void *endR,            //SP[4]
-   void *ML               //SP[8]
+   void *ML,              //SP[0]
+   void *endL,            //SP[4]
+   void *endR             //SP[8]
 )
 {
    void *head, *curr;
@@ -66,9 +66,9 @@ ASSUMES: input lists have at least one node, and NULL terminated
 #define endR r7        //holds last node of rb
 
 #define FSZ 4*6        //6 regs stored
-#define arg4 FSZ       //offset of first arg on SP
-#define arg5 FSZ+4     //offset of 2nd arg on SP
-#define arg6 FSZ+8     //offset of 3rd arg on SP
+#define arg4 FSZ       //offset of first arg on SP (ML)
+#define arg5 FSZ+4     //offset of 2nd arg on SP (endL)
+#define arg6 FSZ+8     //offset of 3rd arg on SP (endR)
 
 mrgChains:
    //Reg configuration A
@@ -84,8 +84,8 @@ mrgChains:
    mov r4,r8              //move from hi to low
    mov r5,r9              //move from hi to low
    push {r4,r5}           //save caller's r8,r9 too
-   ldr endL,[SP,#arg4]    //load endL argument from stack
-   ldr endR,[SP,#arg5]    //load endR argument from stack
+   ldr endL,[SP,#arg5]    //load endL argument from stack
+   ldr endR,[SP,#arg6]    //load endR argument from stack
    /*
       if(maxL <= rbVal)
       {
@@ -199,7 +199,7 @@ b LOOP                       //      continue;
 #define endL r6           //holds last node of lb
 #define endR r7           //holds last node of rb
 QRET1:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
-   ldr ML,[SP,#arg6]      //load ML from stack
+   ldr ML,[SP,#arg4]      //load ML from stack
    str endL,[ML]          //*ML = endL
    str lb,[endR,gNxt]     //append lb to end of rb
    movs r0,rb             //return rb
@@ -210,7 +210,7 @@ QRET1:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
 bx LR
 
 QRET2:                 //occurs if(max(lb) <= min(rb)) -> add rb to lb
-   ldr ML,[SP,#arg6]      //load ML from stack
+   ldr ML,[SP,#arg4]      //load ML from stack
    str endR,[ML]          //*ML = endL
    str rb,[endL,gNxt]     //append rb to end of lb
    pop {r1,r2}            //restore caller's r8,r9
@@ -228,7 +228,7 @@ bx LR                     //return lb
 #define endL r8           //holds last node of lb
 #define endR r9           //holds last node of rb
 DONE1:                 //occurs if(!lb) -> add rb to curr
-   ldr ML,[SP,#arg6]      //load ML from stack
+   ldr ML,[SP,#arg4]      //load ML from stack
    mov r5,endR            //mov endR from higher register
    str r5,[ML]            //*ML = endR
    str rb,[curr,gNxt]     //append rb to current node
@@ -239,7 +239,7 @@ DONE1:                 //occurs if(!lb) -> add rb to curr
 bx LR                     //return head (in r0 already)
 
 DONE2:                 //occurs if(!rb) -> add lb to curr
-   ldr ML,[SP,#arg6]      //load ML from stack
+   ldr ML,[SP,#arg4]      //load ML from stack
    mov r5,endL            //mov endL from higher register
    str r5,[ML]            //*ML = endL
    str lb,[curr,gNxt]     //append lb to current node
