@@ -210,8 +210,7 @@ QRET1:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
 bx LR
 
 QRET2:                 //occurs if(max(lb) <= min(rb)) -> add rb to lb
-
-   ldr ML,[SP,arg6]       //load ML from stack
+   ldr ML,[SP,#arg6]      //load ML from stack
    str endR,[ML]          //*ML = endL
    str rb,[endL,gNxt]     //append rb to end of lb
    pop {r1,r2}            //restore caller's r8,r9
@@ -229,7 +228,7 @@ bx LR                     //return lb
 #define endL r8           //holds last node of lb
 #define endR r9           //holds last node of rb
 DONE1:                 //occurs if(!lb) -> add rb to curr
-   ldr ML,[SP,arg6]       //load ML from stack
+   ldr ML,[SP,#arg6]      //load ML from stack
    mov r5,endR            //mov endR from higher register
    str r5,[ML]            //*ML = endR
    str rb,[curr,gNxt]     //append rb to current node
@@ -240,7 +239,7 @@ DONE1:                 //occurs if(!lb) -> add rb to curr
 bx LR                     //return head (in r0 already)
 
 DONE2:                 //occurs if(!rb) -> add lb to curr
-   ldr ML,[SP,arg6]       //load ML from stack
+   ldr ML,[SP,#arg6]      //load ML from stack
    mov r5,endL            //mov endL from higher register
    str r5,[ML]            //*ML = endL
    str lb,[curr,gNxt]     //append lb to current node
