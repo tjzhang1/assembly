@@ -17,6 +17,17 @@ void *mrgChains
    void *endR,
    void *ML
 );
+
+void *mrgSortR
+(
+   unsigned int N,
+   void *bp,  
+   unsigned long gNxt,
+   unsigned long gI,
+   void *ML, 
+   void *UB 
+);
+
 #else
 word_t *mrgChainsC
 (
@@ -114,7 +125,6 @@ word_t *mrgChainsC
       }
    } //end while
 }
-#endif
 
 /*
  * Recursive function:
@@ -159,12 +169,10 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
    //endR set to last node in rb
    
    //return mergeLists on left and right
-   #ifdef THUMB
-      return mrgChains(lb,rb,gNxt,gI,endL,endR,ML);
-   #else
-      return mrgChainsC(lb,rb,endL,endR,ML);
-   #endif
+//   return mrgChains(lb,rb,gNxt,gI,endL,endR,ML);
+   return mrgChainsC(lb,rb,endL,endR,ML);
 }
+#endif //ifdef THUMB
 
 /*
  * Wrapper function
@@ -197,7 +205,11 @@ word_t *mrgSort(word_t *bp, unsigned int gNxt, unsigned int gI)
       if(sorted)
          return(bp);
       /*otherwise, sort*/
+      #ifdef THUMB
+      return mrgSortR(N,bp,gNxt,gI,&ML,&UB);
+      #else
       return mrgSortRC(N, bp, gNxt, gI, &ML, &UB);
+      #endif
    }
    return bp;
 }

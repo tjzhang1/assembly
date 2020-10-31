@@ -28,7 +28,7 @@ SRCd = ./
 # Override this make variable on commandline to try different C/asm codes
 #
 mrgF=mrgSort
-
+thumbF := mrgChainsF.S mrgSortR.S
 #
 # Macros can also help with commonly referenced filenames
 #
@@ -47,9 +47,9 @@ xtimSort : timSort.o $(mrgF).S
 	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).S
 
 xtstSortT : tstSortC.o force_build
-	$(CC) $(CCFLAGS) -DTHUMB -o $@ tstSortC.o $(mrgF).c mrgChainsF.S
+	$(CC) $(CCFLAGS) -DTHUMB -o $@ tstSortC.o $(mrgF).c $(thumbF)
 xtimSortT : timSort.o force_build
-	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).c mrgChainsF.S
+	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).c $(thumbF)
 
 #
 # This rules remove object and executables when they are no longer needed
