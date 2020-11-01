@@ -203,9 +203,9 @@ QRET1:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
    str endL,[ML]          //*ML = endL
    str lb,[endR,gNxt]     //append lb to end of rb
    movs r0,rb             //return rb
-   pop {r1,r2}            //restore caller's r8,r9
-   mov r1,r8              //put r8 in place
-   mov r2,r9              //put r9 in place 
+   pop {r4,r5}            //restore caller's r8,r9
+   mov r4,r8              //put r8 in place
+   mov r5,r9              //put r9 in place 
    pop {r4-r7}            //restore the rest of caller's variables
 bx LR
 
@@ -213,9 +213,9 @@ QRET2:                 //occurs if(max(lb) <= min(rb)) -> add rb to lb
    ldr ML,[SP,#arg4]      //load ML from stack
    str endR,[ML]          //*ML = endL
    str rb,[endL,gNxt]     //append rb to end of lb
-   pop {r1,r2}            //restore caller's r8,r9
-   mov r1,r8              //put r8 in place
-   mov r2,r9              //put r9 in place 
+   pop {r4,r5}            //restore caller's r8,r9
+   mov r4,r8              //put r8 in place
+   mov r5,r9              //put r9 in place 
    pop {r4-r7}            //restore the rest of caller's variables
 bx LR                     //return lb
 #undef lb
@@ -232,9 +232,9 @@ DONE1:                 //occurs if(!lb) -> add rb to curr
    mov r5,endR            //mov endR from higher register
    str r5,[ML]            //*ML = endR
    str rb,[curr,gNxt]     //append rb to current node
-   pop {r1,r2}            //restore caller's r8,r9
-   mov r1,r8              //put r8 in place
-   mov r2,r9              //put r9 in place 
+   pop {r4,r5}            //restore caller's r8,r9
+   mov r4,r8              //put r8 in place
+   mov r5,r9              //put r9 in place 
    pop {r4-r7}            //restore the rest of caller's variables
 bx LR                     //return head (in r0 already)
 
@@ -243,8 +243,8 @@ DONE2:                 //occurs if(!rb) -> add lb to curr
    mov r5,endL            //mov endL from higher register
    str r5,[ML]            //*ML = endL
    str lb,[curr,gNxt]     //append lb to current node
-   pop {r1,r2}            //restore caller's r8,r9
-   mov r1,r8              //put r8 in place
-   mov r2,r9              //put r9 in place 
+   pop {r4,r5}            //restore caller's r8,r9
+   mov r4,r8              //put r8 in place
+   mov r5,r9              //put r9 in place 
    pop {r4-r7}            //restore the rest of caller's variables
 bx LR                     //return head (in r0 already)

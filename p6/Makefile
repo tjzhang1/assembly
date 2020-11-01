@@ -49,7 +49,7 @@ xtimSort : timSort.o $(mrgF).S
 xtstSortT : tstSortC.o force_build
 	$(CC) $(CCFLAGS) -DTHUMB -o $@ tstSortC.o $(mrgF).c $(thumbF)
 xtimSortT : timSort.o force_build
-	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).c $(thumbF)
+	$(CC) $(CCTFLAGS) -DTHUMB -o $@ timSort.o $(mrgF).c $(thumbF)
 
 #
 # This rules remove object and executables when they are no longer needed

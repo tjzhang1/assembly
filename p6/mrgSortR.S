@@ -129,7 +129,8 @@ mrgSortR:
    */
    bl mrgSortR            //mrgSortR(nr,*UB,gN,gI,&endR,UB)
    
-   movs r1,lb             //arg1=lb for mrgChains
+   movs r1,r0             //set rb to arg1 for mrgChains
+   movs r0,lb             //arg0=lb for mrgChains
    #undef pEndL           //free r4
    #undef pEndR           //free r5
    add SP,SP,#8           //dealloc &endR and UB
@@ -143,9 +144,9 @@ mrgSortR:
          [endR]
          [endL]
          [ML]
-            mrgChains(rb,lb,gN,gI,ML,endL,endR)
+            mrgChains(lb,rb,gN,gI,ML,endL,endR)
    */
-   bl mrgChains           //mrgChains(rb,lb,gN,gI,ML,endL,endR)
+   bl mrgChains           //mrgChains(lb,rb,gN,gI,ML,endL,endR)
    
    //cleanup 
    add SP,SP,#12          //dealloc ML,endL,endR

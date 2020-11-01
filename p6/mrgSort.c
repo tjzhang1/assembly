@@ -13,9 +13,9 @@ void *mrgChains
    void *rb,
    unsigned int gNxt,
    unsigned int gInt,
+   void *ML,
    void *endL,
-   void *endR,
-   void *ML
+   void *endR
 );
 
 void *mrgSortR
@@ -126,6 +126,7 @@ word_t *mrgChainsC
    } //end while
 }
 
+
 /*
  * Recursive function:
  */
@@ -169,9 +170,13 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
    //endR set to last node in rb
    
    //return mergeLists on left and right
-//   return mrgChains(lb,rb,gNxt,gI,endL,endR,ML);
+   #ifdef THUMB
+   return mrgChains(lb,rb,gNxt,gI,ML,endL,endR);
+   #else
    return mrgChainsC(lb,rb,endL,endR,ML);
+   #endif
 }
+
 #endif //ifdef THUMB
 
 /*
