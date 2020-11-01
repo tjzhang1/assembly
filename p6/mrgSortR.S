@@ -45,9 +45,6 @@ void *mrgSortRC
  * RETURNS: base pointer to sorted list
  */
 
-#define FSZ 4*5           //stack holds 5 regs
-#define arg4 FSZ          //position on stack of arg4 (ML)
-#define arg5 FSZ+4        //position on stack of arg5 (UB)
 
 .text
 .thumb
@@ -73,6 +70,8 @@ mrgSortR:
    //r6: nr,lb
    //r7: UB
    push {r4-r7,LR}        //store caller's variables
+   #define FSZ 4*5        //stack holds 5 regs
+
    //bp is always non-NULL and N>0 thanks to wrapper function
    cmp N,#1               //if(N==1)
       bEQ BASE            //   perform base case code
@@ -83,9 +82,16 @@ mrgSortR:
    subs nl,N,nr           //nl = N-nr = N-N/2
    #undef N               //N no longer needed
    //word_t *endL, *endR;
-   sub SP,SP,#8           //allocate space for endL and endR
+   #define LSZ 2*4        //save 2 local variables
+   sub SP,SP,#LSZ         //allocate space for endL and endR
    add pEndL,SP,#0        //save address of endL as SP[0]
    add pEndR,SP,#4        //save address of endR as SP[4]
+
+   #define UB r7
+   #define arg5 FSZ+LSZ+4 //position on stack of UB; arg5
+   ldr UB,[SP,#arg5]      //load UB from stack
+   #undef arg5
+   push {pEndL,UB}        //push args to stack: pEndL=SP[0],UB=SP[4]
    /*
       Stack frame:
       mrgSortWrapper(...)
@@ -93,39 +99,44 @@ mrgSortR:
       [UB]
       [ML]
          mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r7-r4,r8]
+         [LR,r7-r4] (caller's regs)
          [endR]
          [endL]
          [UB]
          [&endL]
             mrgSortR(nl,bp,gN,gI,&endL,UB)
    */
-   #define UB r7
-   ldr UB,[SP,#arg5]      //load UB
-   push {pEndL,UB}        //push args to stack: pEndL=SP[0],UB=SP[4]
    bl mrgSortR            //mrgSortR(nl,bp,gN,gI,&endL,UB)
    #undef nl              //nl no longer needed
 
-   /*
-         mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r7-r4,r8]
-         [endR]
-         [endL]
-         [UB]
-         [&endR]
-            mrgSortR(nr,*UB,gN,gI,&endR,UB)
-   */
    //need to swap lb (r0) with nr (r6)
    eors r0,nr             //r0 = lb^nr
    eors r6,r0             //r6 = nr^(lb^nr) = (nr^nr)^lb = 0^lb = lb
    #define lb r6          //left buffer
    eors r0,lb             //r0 = lb^(lb^nr) = (lb^lb)^nr = 0^nr = nr
    #undef nr              //r6 now lb, arg0=nr
-   str r1,[UB]            //arg1=*UB for mrgSortR
+   ldr r1,[UB]            //arg1=*UB for mrgSortR
    str pEndR,[SP]         //overwrite SP[0]=&endL with &endR
    #undef UB              //UB no longer needed
+   /*
+         mrgSortR(N,bp,gN,gI,ML,UB) (this function)
+         [LR,r7-r4] (caller's regs)
+         [endR]
+         [endL]
+         [UB]
+         [&endR]
+            mrgSortR(nr,*UB,gN,gI,&endR,UB)
+   */
    bl mrgSortR            //mrgSortR(nr,*UB,gN,gI,&endR,UB)
    
+   movs r1,lb             //arg1=lb for mrgChains
+   #undef pEndL           //free r4
+   #undef pEndR           //free r5
+   add SP,SP,#8           //dealloc &endR and UB
+   #define arg4 FSZ+LSZ   //position on stack of ML; arg4
+   ldr r4,[SP,#arg4]      //load ML from stack (arg4)
+   #undef arg4
+   push {r4}              //push ML to stack
    /*
          mrgSortR(N,bp,gN,gI,ML,UB) (this function)
          [LR,r7-r4]
@@ -134,12 +145,6 @@ mrgSortR:
          [ML]
             mrgChains(rb,lb,gN,gI,ML,endL,endR)
    */
-   movs r1,lb             //arg1=lb for mrgChains
-   #undef pEndL           //free r4
-   #undef pEndR           //free r5
-   add SP,SP,#4           //dealloc &endR
-   ldr r4,[SP,#arg4]      //load ML from stack (arg4)
-   str r4,[SP]            //overwrite SP[0]=UB with ML
    bl mrgChains           //mrgChains(rb,lb,gN,gI,ML,endL,endR)
    
    //cleanup 
@@ -150,13 +155,15 @@ pop {r4-r7,PC}            //restore caller's r4-r7, and put LR->PC
 #define ML r4
 #define UB r5
 #define next r6
+#define arg4 FSZ          //position on stack of ML; arg4
+#define arg5 FSZ+4        //position on stack of UB; arg5
 BASE:                  //base case: if(N==1)
-   ldr UB,[SP,#arg4]      //load UB from stack
-   ldr ML,[SP,#arg5]      //load ML from stack
+   ldr ML,[SP,#arg4]      //load ML from stack
+   ldr UB,[SP,#arg5]      //load UB from stack
    ldr next,[bp,gNxt]     //load bp->next
    str next,[UB]          //*UB = bp->next; points to next unsorted node
    str bp,[ML]            //*ML = bp; points to last sorted node (bp)
-   eors r6,r6             //r6 = #0 = r6^r6
+   eors next,next         //next = #0 = next^next
    str next,[bp,gNxt]     //bp->next = NULL; for mrgChains to work
    movs r0,bp             //return bp;
 pop {r4-r7,PC}            //restore caller's r4-r7, and put LR->PC

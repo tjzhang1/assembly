@@ -160,11 +160,11 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
    /*initialize lengths of left and right buffers for splitting*/
    unsigned int leftHalf=(N>>1), rightHalf = N-leftHalf;
    /*mrgSort on left nodes*/
-   lb = mrgSortRC(leftHalf,bp,gNxt,gI,&endL,&rb);
+   lb = mrgSortRC(leftHalf,bp,gNxt,gI,&endL,UB);
    //rb set to next unsorted spot
    //endL set to last node in lb
    /*mrgSort on right nodes, utilizing the new rb value from prev mrgSort*/
-   rb = mrgSortRC(rightHalf,rb,gNxt,gI,&endR,UB);
+   rb = mrgSortRC(rightHalf,*UB,gNxt,gI,&endR,UB);
    //UB updated to next unsorted spot
    //endR set to last node in rb
    
