@@ -514,7 +514,7 @@ mrgChains:
          cmp lb,#0           //   if(!lb)
          bEQ DONE1           //      break;
          ldr vl,[lb,gInt]    //   else update int value from lb
-         b LOOP              //      continue;
+         b LOOP2             //      continue;
       ELSE2:                 //else if(valLeft > valRight)
          str rb,[curr,gNxt]  //   set nxt node in sorted list = rb
          movs curr,rb        //   curr = rb; (curr=curr->next)
