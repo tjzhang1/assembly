@@ -42,7 +42,7 @@ xtimSortC : timSort.o  force_build
 	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).c
 
 xtstSort : tstSort.o $(mrgF).S
-	$(CC) $(CCFLAGS) -o $@ tstSort.o $(mrgF).S mrgChainsF.S mrgSortR.S
+	$(CC) $(CCFLAGS) -o $@ tstSort.o $(mrgF).S
 xtimSort : timSort.o $(mrgF).S
 	$(CC) $(CCTFLAGS) -o $@ timSort.o $(mrgF).S mrgChainsF.S mrgSortR.S
 

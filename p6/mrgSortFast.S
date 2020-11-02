@@ -142,6 +142,9 @@ mrgSort:
    mov r9,r5           //restore caller's r9
 pop {r4-r7,PC}         //restore caller's r4-r7 and return
 
+QRET1:  //occurs when bp=NULL, just return bp
+bx LR
+
 #undef bp
 #undef gNxt
 #undef gI
@@ -332,6 +335,7 @@ pop {r4-r7,PC}            //restore caller's r4-r7, and put LR->PC
 #undef bp
 #undef gNxt
 #undef gI
+#undef lb
 #undef ML
 #undef UB
 #undef next
@@ -398,7 +402,7 @@ ASSUMES: input lists have at least one node, and NULL terminated
 .text
 .thumb
 .syntax unified
-.local DONE1,DONE2,LOOP,ELSE1,ELSE2,QRET1,QRET2
+.local DONE1,DONE2,LOOP2,ELSE1,ELSE2,QRET3,QRET4
 .global mrgChains
 
 #define lb r0          //holds the top of left chain
@@ -445,7 +449,7 @@ mrgChains:
    ldr vl,[lb,gInt]       //load int value from lb
    ldr maxR,[endR,gInt]   //load int value from endR
    cmp maxR,vl            //if(max(rb) <= min(lb))
-      bLE QRET1           //   concatenate lb to rb and return
+      bLE QRET3           //   concatenate lb to rb and return
    mov r8,vl              //save vl by moving to higher reg
    #undef vl              //reassign vl for vr
    #undef maxR            //free r5 for maxL
@@ -454,7 +458,7 @@ mrgChains:
    ldr vr,[rb,gInt]       //load int value from rb
    ldr maxL,[endL,gInt]   //load int value from endL
    cmp maxL,vr            //if(max(lb) <= min(rb))
-      bLE QRET2           //   concatenate rb to lb and return
+      bLE QRET4           //   concatenate rb to lb and return
    mov r5,r8              //restore vl from high reg
    mov r8,endL            //store endL to high reg
    mov r9,endR            //store endR to high reg
@@ -492,7 +496,7 @@ mrgChains:
       cmp lb,#0           //   if(!lb)
       bEQ DONE1           //      skip loop
       ldr vl,[lb,gInt]    //   else update int value from lb
-      b LOOP              //   begin loop
+      b LOOP2             //   begin loop
    ELSE1:                 //else if(valLeft > valRight)
       movs head,rb        //   head = rb; (set head of sorted list)
       ldr rb,[rb,gNxt]    //   rb=rb->next; (increment rb)
@@ -501,7 +505,7 @@ mrgChains:
       bEQ DONE2           //      skip loop
       ldr vr,[rb,gInt]    //   else update int value from rb, begin loop
 
-   LOOP:
+   LOOP2:
       cmp vl,vr              //if(valLeft <= valRight)
          bGT ELSE2
          str lb,[curr,gNxt]  //   set nxt node in sorted list = lb
@@ -518,7 +522,7 @@ mrgChains:
          cmp rb,#0           //   if(!rb)
          bEQ DONE2           //      break;
          ldr vr,[rb,gInt]    //   else update int value from rb
-b LOOP                       //      continue;
+b LOOP2                      //      continue;
 
 
 //Clear reg configuration
@@ -540,7 +544,7 @@ b LOOP                       //      continue;
 #define ML r4             //updated to point to last node
 #define endL r6           //holds last node of lb
 #define endR r7           //holds last node of rb
-QRET1:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
+QRET3:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
    ldr ML,[SP,#arg4]      //load ML from stack
    str endL,[ML]          //*ML = endL
    str lb,[endR,gNxt]     //append lb to end of rb
@@ -548,7 +552,7 @@ QRET1:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
    pop {r4-r7}            //restore the rest of caller's variables
 bx LR
 
-QRET2:                 //occurs if(max(lb) <= min(rb)) -> add rb to lb
+QRET4:                 //occurs if(max(lb) <= min(rb)) -> add rb to lb
    ldr ML,[SP,#arg4]      //load ML from stack
    str endR,[ML]          //*ML = endL
    str rb,[endL,gNxt]     //append rb to end of lb
