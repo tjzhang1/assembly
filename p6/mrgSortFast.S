@@ -1,4 +1,9 @@
 
+//Table of contents:
+// mrgSort: around line 10
+// mrgSortR: around line 170
+// mrgChains: around line 350 
+
 //-----------------------------------------------------------------------------
 //                   mrgSort(bp,gN,gI)
 //-----------------------------------------------------------------------------
@@ -40,8 +45,8 @@ word_t *mrgSort(word_t *bp, unsigned int gNxt, unsigned int gI)
 #define gNxt r1
 #define gI r2
 #define N r3
-#define pML r4
-#define pUB r5
+#define sorted r4   //whether list is sorted or not
+#define prevLen r5  //value of previous node
 #define currLen r6
 #define curr r7
 
@@ -57,6 +62,31 @@ mrgSort:
    cmp curr,#0         //if there's only one element,
    bEQ QRET2           //   cleanup and return
 
+   movs sorted,#1      //assume sorted to start
+   movs N,#1           //init N=1;
+   ldr prevLen,[bp,gI] //prevLen = bp->value;
+   //we know N>=2, so begin loop
+   //loop to count num nodes and check if sorted
+   LOOP:
+      ldr currLen,[curr,gI]  //currLen = curr->val;
+      subs r5,currLen,prevLen//calculate currLen-prevLen, using r5 as mask
+      asrs r5,r5,#31         //r5 = (prevLen > currLen) ? 0xFFFFFFFF:0
+      mvns r5,r5             //r5 = (prevLen > currLen) ? 0:0xFFFFFFFF
+                             //   same as (prevLen <= currLen) ? 0xFFFFFFFF:0
+      ands sorted,r5         //sorted &= (prevLen <= currLen) ? 1:0
+      movs prevLen,currLen   //prevLen = currLen (update prevLen)
+      adds N,#1              //N++; counts num nodes
+      ldr curr,[curr,gNxt]   //curr=curr->next;
+      cmp curr,#0            //if(curr)
+   bNE LOOP                  //   continue;
+
+   cmp sorted,#0       //if(sorted)
+   bNE QRET2           //   return bp;
+
+   //             r0 r1 r2   r3 SP  SP+4
+   //call mrgSortR(N,bp,gNxt,gI,&ML,&UB)
+   #define pML r4
+   #define pUB r7
    #define LSZ 2*4     //two local variables
    sub SP,SP,#LSZ      //allocate space for UB and ML
    add pML,SP,#0       //save addr of ML
@@ -79,33 +109,7 @@ mrgSort:
          [&pML]
          mrgSortR(N,bp,gN,gI,&ML,&UB)
    */
-   #undef pML          //pML on stack, frees r4
-   #undef pUB          //pUB on stack, frees r5
-   #define sorted r4   //whether list is sorted or not
-   #define prevLen r5  //value of previous node
-   movs sorted,#1      //assume sorted to start
-   movs N,#1           //init N=1;
-   ldr prevLen,[bp,gI] //prevLen = bp->value;
-   //we know N>=2, so begin loop
-   //loop to count num nodes and check if sorted
-   LOOP:
-      ldr currLen,[curr,gI]  //currLen = curr->val;
-      subs r5,currLen,prevLen//calculate currLen-prevLen, using r5 as mask
-      asrs r5,r5,#31         //r5 = (prevLen > currLen) ? 0xFFFFFFFF:0
-      mvns r5,r5             //r5 = (prevLen > currLen) ? 0:0xFFFFFFFF
-                             //   same as (prevLen <= currLen) ? 0xFFFFFFFF:0
-      ands sorted,r5         //sorted &= (prevLen <= currLen) ? 1:0
-      movs prevLen,currLen   //prevLen = currLen (update prevLen)
-      adds N,#1              //N++; counts num nodes
-      ldr curr,[curr,gNxt]   //curr=curr->next;
-      cmp curr,#0            //if(curr)
-   bNE LOOP                  //   continue;
 
-   cmp sorted,#0       //if(sorted)
-   bNE DONE            //   return bp;
-
-   //             r0 r1 r2   r3 SP  SP+4
-   //call mrgSortR(N,bp,gNxt,gI,&ML,&UB)
    //current reg config:
    //r0: bp goes to -> r1
    //r1: gNxt goes to -> r2
@@ -149,6 +153,8 @@ bx LR
 #undef gNxt
 #undef gI
 #undef N
+#undef pML          //pML on stack, frees r4
+#undef pUB          //pUB on stack, frees r5
 #undef sorted
 #undef prevLen
 #undef currLen
@@ -215,11 +221,15 @@ void *mrgSortRC
 .global mrgSortR
 
 #define N r0              //num nodes to sort
+#define nl r0             //num nodes in left half
 #define bp r1             //base pointer of input unsorted list
 #define gNxt r2           //num bytes from start of struct for ->next ptr
 #define gI r3             //num bytes from start of struct for ->value
 #define pEndL r4          //ptr to addr of last node of left buffer
 #define pEndR r5          //ptr to addr of last node of right buffer
+#define nr r6             //num nodes in right half
+#define lb r6             //left buffer
+#define UB r7             //OUT: set ptr to addr of next node after sorted list
 
 mrgSortR:
    /* Reg configuration */
@@ -230,7 +240,7 @@ mrgSortR:
    //r4: pEndL,ML         //OUT: set ML ptr to addr of last node in sorted list
    //r5: pEndR
    //r6: nr,lb
-   //r7: UB               //OUT: set ptr to addr of next node after sorted list
+   //r7: UB
    push {r4-r7,LR}        //store caller's variables
    #define FSZ 4*5        //stack holds 5 regs
 
@@ -238,8 +248,6 @@ mrgSortR:
    cmp N,#1               //if(N==1)
       bEQ BASE            //   perform base case code
    //perform splitting
-   #define nl r0          //num nodes in left half
-   #define nr r6          //num nodes in right half
    lsrs nr,N,#1           //nr = N >> 1 = N/2
    subs nl,N,nr           //nl = N-nr = N-N/2
    #undef N               //N no longer needed
@@ -249,9 +257,8 @@ mrgSortR:
    add pEndL,SP,#0        //save address of endL as SP[0]
    add pEndR,SP,#4        //save address of endR as SP[4]
 
-   #define UB r7
    #define arg5 FSZ+LSZ+4 //position on stack of UB; arg5
-   ldr UB,[SP,#arg5]      //load UB from stack
+//   ldr UB,[SP,#arg5]      //load UB from stack
    #undef arg5
    push {pEndL,UB}        //push args to stack: pEndL=SP[0],UB=SP[4]
    /*
@@ -272,10 +279,9 @@ mrgSortR:
    #undef nl              //nl no longer needed
 
    //need to swap lb (r0) with nr (r6)
-   eors r0,nr             //r0 = lb^nr
+   eors r0,r6             //r0 = lb^nr
    eors r6,r0             //r6 = nr^(lb^nr) = (nr^nr)^lb = 0^lb = lb
-   #define lb r6          //left buffer
-   eors r0,lb             //r0 = lb^(lb^nr) = (lb^lb)^nr = 0^nr = nr
+   eors r0,r6             //r0 = lb^(lb^nr) = (lb^lb)^nr = 0^nr = nr
    #undef nr              //r6 now lb, arg0=nr
    ldr r1,[UB]            //arg1=*UB for mrgSortR
    str pEndR,[SP]         //overwrite SP[0]=&endL with &endR
