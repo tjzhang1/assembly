@@ -98,14 +98,13 @@ mrgSort:
          [UB]
          [ML]
    */
-   #define ASZ 2*4     //two args pushed to stack
-   push {pML,pUB}      //store &ML and &UB as arguments for mrgSortR
+   #define ASZ 1*4     //one arg pushed to stack
+   push {pML}          //store &ML as argument for mrgSortR
    /*
       mrgSort(bp,gNxt,gInt)
          [LR,r7-r4,r9-r8]
          [UB]
          [ML]
-         [&pUB]
          [&pML]
          mrgSortR(N,bp,gN,gI,&ML,&UB)
    */
@@ -135,7 +134,6 @@ mrgSort:
          [LR,r7-r4,r9-r8]
          [UB]
          [ML]
-         [&pUB]
          [&pML]
    */
    #define TSZ LSZ+ASZ //space to free = size of local vars + mrgSortR args
@@ -176,7 +174,7 @@ void *mrgSortRC
    unsigned long gNxt,    //r2
    unsigned long gI,      //r3
    void *ML,              //SP[0]
-   void *UB               //SP[4]
+   void *UB               //r7
 )
 {
    if(N == 1) //base case, sorted
@@ -229,7 +227,7 @@ void *mrgSortRC
 #define pEndR r5          //ptr to addr of last node of right buffer
 #define nr r6             //num nodes in right half
 #define lb r6             //left buffer
-#define UB r7             //OUT: set ptr to addr of next node after sorted list
+#define pUB r7            //OUT: set ptr to addr of next node after sorted list
 
 mrgSortR:
    /* Reg configuration */
@@ -240,9 +238,9 @@ mrgSortR:
    //r4: pEndL,ML         //OUT: set ML ptr to addr of last node in sorted list
    //r5: pEndR
    //r6: nr,lb
-   //r7: UB
-   push {r4-r7,LR}        //store caller's variables
-   #define FSZ 4*5        //stack holds 5 regs
+   //r7: pUB              //don't need to save pUB because it is unchanging
+   push {r4-r6,LR}        //store caller's variables
+   #define FSZ 4*4        //stack holds 4 regs
 
    //bp is always non-NULL and N>0 thanks to wrapper function
    cmp N,#1               //if(N==1)
@@ -257,21 +255,16 @@ mrgSortR:
    add pEndL,SP,#0        //save address of endL as SP[0]
    add pEndR,SP,#4        //save address of endR as SP[4]
 
-   #define arg5 FSZ+LSZ+4 //position on stack of UB; arg5
-//   ldr UB,[SP,#arg5]      //load UB from stack
-   #undef arg5
-   push {pEndL,UB}        //push args to stack: pEndL=SP[0],UB=SP[4]
+   push {pEndL}           //push args to stack: pEndL=SP[0]
    /*
       Stack frame:
       mrgSortWrapper(...)
       [...]
-      [UB]
       [ML]
          mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r7-r4] (caller's regs)
+         [LR,r6-r4] (caller's regs)
          [endR]
          [endL]
-         [UB]
          [&endL]
             mrgSortR(nl,bp,gN,gI,&endL,UB)
    */
@@ -283,15 +276,13 @@ mrgSortR:
    eors r6,r0             //r6 = nr^(lb^nr) = (nr^nr)^lb = 0^lb = lb
    eors r0,r6             //r0 = lb^(lb^nr) = (lb^lb)^nr = 0^nr = nr
    #undef nr              //r6 now lb, arg0=nr
-   ldr r1,[UB]            //arg1=*UB for mrgSortR
+   ldr r1,[pUB]           //arg1=*pUB for mrgSortR
    str pEndR,[SP]         //overwrite SP[0]=&endL with &endR
-   #undef UB              //UB no longer needed
    /*
          mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r7-r4] (caller's regs)
+         [LR,r6-r4] (caller's regs)
          [endR]
          [endL]
-         [UB]
          [&endR]
             mrgSortR(nr,*UB,gN,gI,&endR,UB)
    */
@@ -301,14 +292,14 @@ mrgSortR:
    movs r0,lb             //arg0=lb for mrgChains
    #undef pEndL           //free r4
    #undef pEndR           //free r5
-   add SP,SP,#8           //dealloc &endR and UB
+   add SP,SP,#4           //dealloc &endR
    #define arg4 FSZ+LSZ   //position on stack of ML; arg4
    ldr r4,[SP,#arg4]      //load ML from stack (arg4)
    #undef arg4
    push {r4}              //push ML to stack
    /*
          mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r7-r4]
+         [LR,r6-r4]
          [endR]
          [endL]
          [ML]
@@ -318,24 +309,23 @@ mrgSortR:
 
    //cleanup
    add SP,SP,#12          //dealloc ML,endL,endR
-pop {r4-r7,PC}            //restore caller's r4-r7, and put LR->PC
+pop {r4-r6,PC}            //restore caller's r4-r6, and put LR->PC
 //bx LR (implicit)
 
 #define ML r4
-#define UB r5
+#define UB r7
 #define next r6
 #define arg4 FSZ          //position on stack of ML; arg4
 #define arg5 FSZ+4        //position on stack of UB; arg5
 BASE:                  //base case: if(N==1)
    ldr ML,[SP,#arg4]      //load ML from stack
-   ldr UB,[SP,#arg5]      //load UB from stack
    ldr next,[bp,gNxt]     //load bp->next
-   str next,[UB]          //*UB = bp->next; points to next unsorted node
+   str next,[pUB]         //*UB = bp->next; points to next unsorted node
    str bp,[ML]            //*ML = bp; points to last sorted node (bp)
    eors next,next         //next = #0 = next^next
    str next,[bp,gNxt]     //bp->next = NULL; for mrgChains to work
    movs r0,bp             //return bp;
-pop {r4-r7,PC}            //restore caller's r4-r7, and put LR->PC
+pop {r4-r6,PC}            //restore caller's r4-r7, and put LR->PC
 //bx LR (implicit)
 
 #undef bp
