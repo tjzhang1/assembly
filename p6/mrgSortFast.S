@@ -2,7 +2,7 @@
 //Table of contents:
 // mrgSort: around line 10
 // mrgSortR: around line 170
-// mrgChains: around line 350 
+// mrgChains: around line 290 
 
 //-----------------------------------------------------------------------------
 //                   mrgSort(bp,gN,gI)
@@ -63,7 +63,7 @@ mrgSort:
    bEQ QRET2           //   cleanup and return
 
    movs sorted,#1      //assume sorted to start
-   movs N,#1           //init N=1;
+   movs N,#1           //start N=1 since there's at least 1 node
    ldr prevLen,[bp,gI] //prevLen = bp->value;
    //we know N>=2, so begin loop
    //loop to count num nodes and check if sorted
@@ -83,33 +83,25 @@ mrgSort:
    cmp sorted,#0       //if(sorted)
    bNE QRET2           //   return bp;
 
-   //             r0 r1 r2   r3 SP  SP+4
+   //             r0 r1 r2   r3 r12 r7
    //call mrgSortR(N,bp,gNxt,gI,&ML,&UB)
-   #define pML r4
+   #define pML r12
    #define pUB r7
    #define LSZ 2*4     //two local variables
    sub SP,SP,#LSZ      //allocate space for UB and ML
-   add pML,SP,#0       //save addr of ML
-   add pUB,SP,#4       //save addr of UB
+   add r4,SP,#0        //save addr of ML
+   mov pML,r4          //mov addr of ML to r12
+   add pUB,SP,#4       //save addr of UB to r7
    /*
       Stack frame:
       mrgSort(bp,gNxt,gInt)
          [LR,r7-r4,r9-r8]
          [UB]
          [ML]
-   */
-   #define ASZ 1*4     //one arg pushed to stack
-   push {pML}          //store &ML as argument for mrgSortR
-   /*
-      mrgSort(bp,gNxt,gInt)
-         [LR,r7-r4,r9-r8]
-         [UB]
-         [ML]
-         [&pML]
          mrgSortR(N,bp,gN,gI,&ML,&UB)
    */
-
-   //current reg config:
+   //moving regs around:
+   //current reg: goes to -> next reg
    //r0: bp goes to -> r1
    //r1: gNxt goes to -> r2
    //r2: gI goes to -> r3
@@ -126,6 +118,7 @@ mrgSort:
    eors r2,r3          //r2 = gI^gNxt
    eors r3,r2          //r3 = gNxt^(gI^gNxt) = (gNxt^gNxt)^gI = 0^gI = gI
    eors r2,r3          //r2 = gI^(gI^gNxt) = (gI^gI)^gNxt = 0^gNxt = gNxt
+   //                  //        r0 r1 r2   r3 r12 r7
    bl mrgSortR         //mrgSortR(N,bp,gNxt,gI,&ML,&UB)
 
    DONE:
@@ -134,10 +127,8 @@ mrgSort:
          [LR,r7-r4,r9-r8]
          [UB]
          [ML]
-         [&pML]
    */
-   #define TSZ LSZ+ASZ //space to free = size of local vars + mrgSortR args
-   add SP,SP,#TSZ      //deallocate stack vars
+   add SP,SP,#LSZ      //deallocate local vars
    QRET2:
    pop {r4,r5}         //pop caller's r8,r9 from stack
    mov r8,r4           //restore caller's r8
@@ -157,9 +148,7 @@ bx LR
 #undef prevLen
 #undef currLen
 #undef curr
-#undef TSZ
 #undef LSZ
-#undef ASZ
 
 //-----------------------------------------------------------------------------
 //                   mrgSortR(N,bp,gN,gI,ML,UB)
@@ -173,7 +162,7 @@ void *mrgSortRC
    void *bp,              //r1
    unsigned long gNxt,    //r2
    unsigned long gI,      //r3
-   void *ML,              //SP[0]
+   void *ML,              //r12
    void *UB               //r7
 )
 {
@@ -223,11 +212,12 @@ void *mrgSortRC
 #define bp r1             //base pointer of input unsorted list
 #define gNxt r2           //num bytes from start of struct for ->next ptr
 #define gI r3             //num bytes from start of struct for ->value
-#define pEndL r4          //ptr to addr of last node of left buffer
-#define pEndR r5          //ptr to addr of last node of right buffer
+#define endL r4           //addr of last node of left buffer
+#define endR r5           //addr of last node of right buffer
+#define pML r5            //ptr to addr of last node in mrged list, same as r12
 #define nr r6             //num nodes in right half
 #define lb r6             //left buffer
-#define pUB r7            //OUT: set ptr to addr of next node after sorted list
+#define pUB r7            //ptr to addr of next node after sorted list
 
 mrgSortR:
    /* Reg configuration */
@@ -235,40 +225,23 @@ mrgSortR:
    //r1: bp,*UB
    //r2: gNxt
    //r3: gI
-   //r4: pEndL,ML         //OUT: set ML ptr to addr of last node in sorted list
-   //r5: pEndR
+   //r4: endL             
+   //r5: endR,pML         //pML temporarily used here to perform ldr/str
    //r6: nr,lb
    //r7: pUB              //don't need to save pUB because it is unchanging
+   //r12: pML             //similarly, pML is unchanging so no need to save
    push {r4-r6,LR}        //store caller's variables
-   #define FSZ 4*4        //stack holds 4 regs
 
    //bp is always non-NULL and N>0 thanks to wrapper function
+   mov pML,r12            //load pML from high reg to do load
    cmp N,#1               //if(N==1)
-      bEQ BASE            //   perform base case code
-   //perform splitting
+   bEQ BASE               //   perform base case code
    lsrs nr,N,#1           //nr = N >> 1 = N/2
    subs nl,N,nr           //nl = N-nr = N-N/2
    #undef N               //N no longer needed
-   //word_t *endL, *endR;
-   #define LSZ 2*4        //save 2 local variables
-   sub SP,SP,#LSZ         //allocate space for endL and endR
-   add pEndL,SP,#0        //save address of endL as SP[0]
-   add pEndR,SP,#4        //save address of endR as SP[4]
-
-   push {pEndL}           //push args to stack: pEndL=SP[0]
-   /*
-      Stack frame:
-      mrgSortWrapper(...)
-      [...]
-      [ML]
-         mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r6-r4] (caller's regs)
-         [endR]
-         [endL]
-         [&endL]
-            mrgSortR(nl,bp,gN,gI,&endL,UB)
-   */
-   bl mrgSortR            //mrgSortR(nl,bp,gN,gI,&endL,UB)
+                          //         r0 r1 r2 r3 r12 r7
+   bl mrgSortR            //mrgSortR(nl,bp,gN,gI,ML,UB)
+   ldr endL,[pML]         //endL = *ML = addr of last node of lb
    #undef nl              //nl no longer needed
 
    //need to swap lb (r0) with nr (r6)
@@ -277,51 +250,22 @@ mrgSortR:
    eors r0,r6             //r0 = lb^(lb^nr) = (lb^lb)^nr = 0^nr = nr
    #undef nr              //r6 now lb, arg0=nr
    ldr r1,[pUB]           //arg1=*pUB for mrgSortR
-   str pEndR,[SP]         //overwrite SP[0]=&endL with &endR
-   /*
-         mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r6-r4] (caller's regs)
-         [endR]
-         [endL]
-         [&endR]
-            mrgSortR(nr,*UB,gN,gI,&endR,UB)
-   */
-   bl mrgSortR            //mrgSortR(nr,*UB,gN,gI,&endR,UB)
+                          //         r0  r1 r2 r3 r12 r7
+   bl mrgSortR            //mrgSortR(nr,*UB,gN,gI,ML,UB)
+   ldr endR,[pML]         //endR = *ML = addr of last node of rb
 
    movs r1,r0             //set rb to arg1 for mrgChains
    movs r0,lb             //arg0=lb for mrgChains
-   #undef pEndL           //free r4
-   #undef pEndR           //free r5
-   add SP,SP,#4           //dealloc &endR
-   #define arg4 FSZ+LSZ   //position on stack of ML; arg4
-   ldr r4,[SP,#arg4]      //load ML from stack (arg4)
-   #undef arg4
-   push {r4}              //push ML to stack
-   /*
-         mrgSortR(N,bp,gN,gI,ML,UB) (this function)
-         [LR,r6-r4]
-         [endR]
-         [endL]
-         [ML]
-            mrgChains(lb,rb,gN,gI,ML,endL,endR)
-   */
-   bl mrgChains           //mrgChains(lb,rb,gN,gI,ML,endL,endR)
-
-   //cleanup
-   add SP,SP,#12          //dealloc ML,endL,endR
+                          //                 r0 r1 r2 r3 r12 r4  r5
+   bl mrgChains           //return mrgChains(lb,rb,gN,gI,ML,endL,endR)
 pop {r4-r6,PC}            //restore caller's r4-r6, and put LR->PC
 //bx LR (implicit)
 
-#define ML r4
-#define UB r7
 #define next r6
-#define arg4 FSZ          //position on stack of ML; arg4
-#define arg5 FSZ+4        //position on stack of UB; arg5
-BASE:                  //base case: if(N==1)
-   ldr ML,[SP,#arg4]      //load ML from stack
+BASE:                     //base case: if(N==1)
    ldr next,[bp,gNxt]     //load bp->next
    str next,[pUB]         //*UB = bp->next; points to next unsorted node
-   str bp,[ML]            //*ML = bp; points to last sorted node (bp)
+   str bp,[pML]           //*ML = bp; points to last sorted node (bp)
    eors next,next         //next = #0 = next^next
    str next,[bp,gNxt]     //bp->next = NULL; for mrgChains to work
    movs r0,bp             //return bp;
@@ -332,13 +276,11 @@ pop {r4-r6,PC}            //restore caller's r4-r7, and put LR->PC
 #undef gNxt
 #undef gI
 #undef lb
-#undef ML
-#undef UB
+#undef endL
+#undef endR
+#undef pML
+#undef pUB
 #undef next
-#undef arg4
-#undef arg5
-#undef FSZ
-#undef LSZ
 
 //-----------------------------------------------------------------------------
 //                   mrgChains(lb,rb,gN,gI,ML,endL,endR)
@@ -351,9 +293,9 @@ void *mrgChains
    void *rb,              //r1
    uint gNxt,             //r2
    uint gInt,             //r3
-   void *ML,              //SP[0]
-   void *endL,            //SP[4]
-   void *endR             //SP[8]
+   void *ML,              //r12
+   void *endL,            //r4
+   void *endR             //r5
 )
 {
    void *head, *curr;
@@ -405,15 +347,13 @@ ASSUMES: input lists have at least one node, and NULL terminated
 #define rb r1          //holds the top of right chain
 #define gNxt r2        //holds offset in bytes to ptr to next node
 #define gInt r3        //holds offset in bytes to value of node
-#define vl r4          //holds first val of lb = min val of lb
-#define maxR r5        //holds val of endR = max val of rb
-#define endL r6        //holds last node of lb
-#define endR r7        //holds last node of rb
-
+#define endL r4        //holds last node of lb
+#define endR r5        //holds last node of rb
+#define vl r6          //holds first val of lb = min val of lb
+#define vr r6          //holds first val of rb = min val of rb
+#define maxL r7        //holds val of endL = max val of lb
+#define maxR r7        //holds val of endR = max val of rb
 #define FSZ 4*4        //4 regs stored
-#define arg4 FSZ       //offset of first arg on SP (ML)
-#define arg5 FSZ+4     //offset of 2nd arg on SP (endL)
-#define arg6 FSZ+8     //offset of 3rd arg on SP (endR)
 
 mrgChains:
    //Reg configuration A
@@ -421,13 +361,12 @@ mrgChains:
    //r1: rb
    //r2: gNxt
    //r3: gInt
-   //r4: vl / vr
-   //r5: maxR / maxL
-   //r6: endL
-   //r7: endR
-   push {r4-r7}           //save caller's variables
-   ldr endL,[SP,#arg5]    //load endL argument from stack
-   ldr endR,[SP,#arg6]    //load endR argument from stack
+   //r4: endL          //doesn't need to be saved, mrgSortR doesn't reuse
+   //r5: endR          //doesn't need to be saved, mrgSortR doesn't reuse
+   //r6: vl / vr
+   //r7: maxR / maxL
+   //r12: pML
+   push {r6,r7}           //save caller's variables
    /*
       if(maxL <= rbVal)
       {
@@ -445,29 +384,28 @@ mrgChains:
    ldr vl,[lb,gInt]       //load int value from lb
    ldr maxR,[endR,gInt]   //load int value from endR
    cmp maxR,vl            //if(max(rb) <= min(lb))
-      bLE QRET3           //   concatenate lb to rb and return
+   bLE QRET3              //   concatenate lb to rb and return
    mov r8,vl              //save vl by moving to higher reg
-   #undef vl              //reassign vl for vr
-   #undef maxR            //free r5 for maxL
-   #define vr r4          //holds first val of rb = min val of rb
-   #define maxL r5        //holds val of endL = max val of lb
+   #undef vl              //vl now in r8
+   #undef maxR            //free r7 for maxL
    ldr vr,[rb,gInt]       //load int value from rb
    ldr maxL,[endL,gInt]   //load int value from endL
    cmp maxL,vr            //if(max(lb) <= min(rb))
-      bLE QRET4           //   concatenate rb to lb and return
-   mov r5,r8              //restore vl from high reg
+   bLE QRET4              //   concatenate rb to lb and return
+   //mov regs into better configuration
+   mov r7,r8              //restore vl from high reg
    mov r8,endL            //store endL to high reg
    mov r9,endR            //store endR to high reg
-   movs r7,lb             //make room for new list head
-   #undef maxL            //free r5 for vl
-   #undef endL            //free r6 for curr
-   #undef endR            //free r7 for lb
-   #undef lb              //reassign lb
+   movs r4,lb             //make room for new list head
+   #undef maxL            //maxL no longer needed
+   #undef endL            //endL now in r8
+   #undef endR            //endR now in r9
+   #undef lb              //reassign lb to r4
    #define head r0        //holds the base ptr of sorted list
-   #define vl r5          //new spot for vl
-   #define curr r6        //holds curr node of sorted list
-   #define lb r7          //new spot for lb
+   #define lb r4          //new spot for lb
+   #define curr r5        //holds curr node of sorted list
    #define endL r8        //new spot for endL
+   #define vl r7          //new spot for vl
    #define endR r9        //new spot for endR
 
    //Reg configuration B
@@ -475,10 +413,10 @@ mrgChains:
    //r1: rb
    //r2: gNxt
    //r3: gInt
-   //r4: vr
-   //r5: vl
-   //r6: curr
-   //r7: lb
+   //r4: lb
+   //r5: curr
+   //r6: vr
+   //r7: vl
    //r8: endL
    //r9: endR
    /*
@@ -526,55 +464,56 @@ b LOOP2                      //      continue;
 #undef rb
 #undef gNxt
 #undef gInt
-#undef vr
-#undef vl
 #undef curr
 #undef lb
+#undef vr
+#undef vl
 #undef endL
 #undef endR
 
+
+#define pML r6            //updated to point to last node
 /* Reg configuration A */
 #define lb r0             //holds the top of left chain
 #define rb r1             //holds the top of right chain
 #define gNxt r2           //holds offset in bytes to ptr to next node
-#define ML r4             //updated to point to last node
-#define endL r6           //holds last node of lb
-#define endR r7           //holds last node of rb
-QRET3:                 //occurs if(max(rb) <= min(lb)) -> add lb to rb
-   ldr ML,[SP,#arg4]      //load ML from stack
-   str endL,[ML]          //*ML = endL
+#define endL r4           //holds last node of lb
+#define endR r5           //holds last node of rb
+QRET3:                    //occurs if(max(rb) <= min(lb)) -> add lb to rb
+   mov pML,r12            //move pML to lower reg for str
+   str endL,[pML]         //*ML = endL
    str lb,[endR,gNxt]     //append lb to end of rb
    movs r0,rb             //return rb
-   pop {r4-r7}            //restore the rest of caller's variables
+   pop {r6,r7}            //restore the rest of caller's variables
 bx LR
 
-QRET4:                 //occurs if(max(lb) <= min(rb)) -> add rb to lb
-   ldr ML,[SP,#arg4]      //load ML from stack
-   str endR,[ML]          //*ML = endL
+QRET4:                    //occurs if(max(lb) <= min(rb)) -> add rb to lb
+   mov pML,r12            //move pML to lower reg for str
+   str endR,[pML]         //*ML = endR
    str rb,[endL,gNxt]     //append rb to end of lb
-   pop {r4-r7}            //restore the rest of caller's variables
+   pop {r6,r7}            //restore the rest of caller's variables
 bx LR                     //return lb
 #undef lb
 #undef endL
 #undef endR
 
 /* Reg configuration B */
-#define curr r6           //holds curr node of sorted list
-#define lb r7             //holds the top of left chain
+#define lb r4             //holds the top of left chain
+#define curr r5           //holds curr node of sorted list
 #define endL r8           //holds last node of lb
 #define endR r9           //holds last node of rb
-DONE1:                 //occurs if(!lb) -> add rb to curr
-   ldr ML,[SP,#arg4]      //load ML from stack
-   mov r5,endR            //mov endR from higher register
-   str r5,[ML]            //*ML = endR
+DONE1:                    //occurs if(!lb) -> add rb to curr
+   mov pML,r12            //move pML to lower reg for str
+   mov r7,endR            //mov endR from higher register
+   str r7,[pML]           //*ML = endR
    str rb,[curr,gNxt]     //append rb to current node
-   pop {r4-r7}            //restore the rest of caller's variables
+   pop {r6,r7}            //restore the rest of caller's variables
 bx LR                     //return head (in r0 already)
 
-DONE2:                 //occurs if(!rb) -> add lb to curr
-   ldr ML,[SP,#arg4]      //load ML from stack
-   mov r5,endL            //mov endL from higher register
-   str r5,[ML]            //*ML = endL
+DONE2:                    //occurs if(!rb) -> add lb to curr
+   mov pML,r12            //move pML to lower reg for str
+   mov r7,endL            //mov endL from higher register
+   str r7,[pML]           //*ML = endL
    str lb,[curr,gNxt]     //append lb to current node
-   pop {r4-r7}            //restore the rest of caller's variables
+   pop {r6,r7}            //restore the rest of caller's variables
 bx LR                     //return head (in r0 already)
