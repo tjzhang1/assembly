@@ -1,3 +1,4 @@
+/*
 void dgemm_asg(int ta, int tb, int M, int N, int K, double alpha, double *A,
                int lda, double *B, int ldb, double beta, double *C, int ldc)
 {
@@ -21,5 +22,43 @@ void dgemm_asg(int ta, int tb, int M, int N, int K, double alpha, double *A,
          }
          C[i*ldc+j] = (alpha*product+valC); //C col major
       }
+   }
+}
+*/
+void dgemm_asg(int ta, int tb, int M, int N, int K, double alpha, double *A,
+               int lda, double *B, int ldb, double beta, double *C, int ldc)
+{
+   //assume A is transposed = AT
+   int i,j,k;
+
+   for (i=0; i<N; i++) //loop through cols of B
+   {
+      for (j=0; j<M; j++) //loop through cols of AT (rows of A)
+      {
+         double valC, product=0.0;
+
+         if(beta == 0.0)
+            valC = beta;
+         else
+            valC = beta*C[0];
+
+         //dot product
+         for(k=0; k<K; k+=1)  //loop through elements in A/B arrays for dot
+         {
+            product += A[0]*B[0];
+            A++;
+            B++;
+         }
+         A-=k;
+         B-=k;
+         C[0] = (alpha*product+valC); //C col major
+
+         A+=lda;
+         C++;
+      }
+      C-=j;
+      A-=j*lda;
+      B+=ldb;
+      C+=ldc;
    }
 }
