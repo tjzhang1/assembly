@@ -61,8 +61,6 @@ float ATL_UDOT(int N, float *X, const int incX, float *Y, const int incY)
    sum0+=x3*y3;
    sum1+=x4*y4;
    sum2+=x5*y5;
-   X+=6;
-   Y+=6;
 
    sum0+=sum1;
    sum0+=sum2;

@@ -1,5 +1,5 @@
-CLASSdir = /home/whaley/classes/ARMF20/p7_fparm
-#CLASSdir = ./
+#CLASSdir = /home/whaley/classes/ARMF20/p7_fparm
+CLASSdir = ./
 
 #CC = gcc
 #CC = /usr/bin/arm-linux-gnueabihf-gcc
@@ -18,7 +18,7 @@ xsdottst : sdottest.o sdot.o
 	$(CC) $(CCFLAGS) -o $@ sdottest.o sdot.o 
 #*********************************************
 xsdottstC : sdottest.o sdotC.o
-	$(CC) $(CCFLAGS) -o $@ sdottest.o sdot.o 
+	$(CC) $(CCFLAGS) -o $@ sdottest.o sdotC.o 
 sdotC.o : sdotC.c
 	$(CC) $(ASFLAGS) -c sdotC.c
 #*********************************************
@@ -39,8 +39,10 @@ dgemmtst.o :  $(CLASSdir)/gemmtst.c
 xdgemmtst : $(objs)
 	$(CC) $(CCFLAGS) -o $@ $(objs)
 
-dgemm_asg.o : dgemm_asg.S
-	$(CC) $(ASFLAGS) -c dgemm_asg.S
+#dgemm_asg.o : dgemm_asg.S
+#	$(CC) $(ASFLAGS) -c dgemm_asg.S
+dgemm_asg.o : dgemm_asg.c
+	$(CC) $(ASFLAGS) -c dgemm_asg.c
 
 dgemm_a1b1.o : $(CLASSdir)/dgemm.c
 	$(CC) $(CCFLAGS) -DALPHA1 -DBETA1 -c -o $@ $(CLASSdir)/dgemm.c
