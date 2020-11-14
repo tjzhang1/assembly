@@ -34,11 +34,11 @@ void dgemm_asg(int ta, int tb, int M, int N, int K, double alpha, double *A,
 .global dgemm_asg
 
 #define K r0              //shared length between A,B
-#define lda r1            //stride length of A
+#define lda r1            //stride length of A, keeps track of current col A
 #define M r2              //num cols of At (= num rows of A)
 #define N r3              //num cols of B
-#define ldb r4            //stride length of B
-#define ldc r5            //stride length of C
+#define ldb r4            //stride length of B, keeps track of current col B
+#define ldc r5            //stride length of C, keeps track of current col C
 #define pA r6             //ptr to A
 #define pB r7             //ptr to B
 #define pC r8             //ptr to C
@@ -79,19 +79,40 @@ dgemm_asg:
       LOOPA:                  //loop through M cols of At
       //{
          mov k,#0             //init k=0;
+         fmdlr dp,k           //mov 0 to low bits of dp
+         fmdhr dp,k           //init product = 0.0
+         fcmpd beta,dp        //vC = (beta == 0.0) ? 0.0:beta*C[0]
+         fmstat               //   set iCC
+         fcpydEQ vC,beta      //   vC = 0.0 if beta == 0.0
+         flddNE vC,[pC]       //   vC = *C if beta != 0.0
+         fmuldNE vC,vC,beta   //   vC = beta*C[0] if beta != 0.0
          LOOPK:                  //loop through K elements for dot
          //{
+            fldmIAd pA!,{vA}     //load A and increment ptr
+            fldmIAd pB!,{vB}     //load B and increment ptr
+            fmacd dp,vA,vB       //dp += vA*vB
             add k,k,#1           //k++;
             cmp k,K              //if(k<K)
          bLT LOOPK               //   continue looping through At/B arrays
          //}
+         sub pA,pA,k,LSL #3   //A-=k, removes accumulated offset from LOOPK
+         sub pB,pB,k,LSL #3   //B-=k, removes accumulated offset from LOOPK
+         fmacd vC,dp,alpha    //vC += alpha*dp;
+         fstd vC,[pC]         //C[i*ldc+j] = alpha*dp+beta;
+         add pA,pA,lda,LSL #3 //increments A by one stride
+         add pC,pC,#8         //increments C
          add j,j,#1           //j++;
          cmp j,M              //if(j<M)
       bLT LOOPA               //   continue looping through At
       //}
+      sub pC,pC,j,LSL #3   //C-=j, removes accumulated offset from LOOPA
+      mul j,j,lda          //j *= lda
+      sub pA,pA,j,LSL #3   //A-=j*lda, removes accumulated offset from LOOPA
+      add pB,pB,ldb,LSL #3 //increments pB by one stride
+      add pC,pC,ldc,LSL #3 //increments pC by one stride
       add i,i,#1           //i++;
       cmp i,N              //if(i<N)
-   bLT LOOPN               //   continue looping through B
+   bLT LOOPB               //   continue looping through B
    //}
    ldmIA SP!,{r4-r10}      //restore caller's regs
 bx LR

@@ -39,10 +39,10 @@ dgemmtst.o :  $(CLASSdir)/gemmtst.c
 xdgemmtst : $(objs)
 	$(CC) $(CCFLAGS) -o $@ $(objs)
 
-#dgemm_asg.o : dgemm_asg.S
-#	$(CC) $(ASFLAGS) -c dgemm_asg.S
-dgemm_asg.o : dgemm_asg.c
-	$(CC) $(ASFLAGS) -c dgemm_asg.c
+dgemm_asg.o : dgemm_asg.S
+	$(CC) $(ASFLAGS) -c dgemm_asg.S
+#dgemm_asg.o : dgemm_asg.c
+#	$(CC) $(ASFLAGS) -c dgemm_asg.c
 
 dgemm_a1b1.o : $(CLASSdir)/dgemm.c
 	$(CC) $(CCFLAGS) -DALPHA1 -DBETA1 -c -o $@ $(CLASSdir)/dgemm.c
