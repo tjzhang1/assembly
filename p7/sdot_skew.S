@@ -39,8 +39,6 @@ float ATL_UDOT(const int N, const float *X, const int incX, const float *Y,
    sum0+=x3*y3;
    sum1+=x4*y4;
    sum2+=x5*y5;
-   X+=6;
-   Y+=6;
 
    sum0+=sum1;
    sum0+=sum2;
@@ -108,6 +106,21 @@ ATL_UDOT:
    add pY,pY,#24       //pY+=6;
    cmp N,#12         //checks there are at least 6 more values to load
    bLT CLEANUP2        //if(N<12) skip accumulator loop and sum loaded values
+   /*
+   *X+=6;
+   *Y+=6;
+   *for(;N>=12;N-=6)
+   *{
+   *   sum0+=x0*y0; x0=X[0]; y0=Y[0];
+   *   sum1+=x1*y1; x1=X[1]; y1=Y[1];
+   *   sum2+=x2*y2; x2=X[2]; y2=Y[2];
+   *   sum0+=x3*y3; x3=X[3]; y3=Y[3];
+   *   sum1+=x4*y4; x4=X[4]; y4=Y[4];
+   *   sum2+=x5*y5; x5=X[5]; y5=Y[5];
+   *   X+=6;
+   *   Y+=6;
+   *}
+   */
    LOOP:
       fmacs sum0,x0,y0 //sum0 += x0 * y0;
       flds x0,[pX]     //x0 = *pX;
@@ -146,14 +159,19 @@ ATL_UDOT:
    fmacs sum0,x3,y3    //sum0+=x3*y3;
    fmacs sum1,x4,y4    //sum1+=x4*y4;
    fmacs sum2,x5,y5    //sum2+=x5*y5;
-   //add pX,pX,#24       //pX+=6;
-   //add pY,pY,#24       //pY+=6;
 
    fadds sum0,sum0,sum1//sum0+=sum1;
    fadds sum0,sum0,sum2//sum0+=sum2;
    subs N,N,#6         //N-=6;
    bLE DONE            //if(N<=0)   skip cleanup
-
+   /*
+   *for(N-=6;N>0;N--)
+   *{
+   *   sum0 += X[0]*Y[0];
+   *   X+=1;
+   *   Y+=1;
+   *}
+   */
    CLEANUP1:
    LOOP2:              //cleanup loop
       fldmIAs pX!,{x0} //x0 = *pX; also increments pX

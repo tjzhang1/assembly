@@ -36,6 +36,10 @@ ATL_UDOT:
    subs N,N,#1         //N--;
    bEQ DONE            //if(!N) skip loop
 
+   /*
+   *for(i=0;i<N;i++)
+   *   sum+=X[i]*Y[i];
+   */
    LOOP:
       fldmIAd pX!,{xV} //xV = *pX; also increments pX
       fldmIAd pY!,{yV} //yV = *pY; also increments pY

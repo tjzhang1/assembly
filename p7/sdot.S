@@ -56,6 +56,19 @@ ATL_UDOT:
    subs N,N,#6         //checks there are at least 6 values to accumulate
    bLT CLEANUP         //if(N<0) skip accumulator loop
 
+   /*
+   *for(N-=6;N>=0;N-=6)
+   *{
+   *   sum0+=X[0]*Y[0];
+   *   sum1+=X[1]*Y[1];
+   *   sum2+=X[2]*Y[2];
+   *   sum0+=X[3]*Y[3];
+   *   sum1+=X[4]*Y[4];
+   *   sum2+=X[5]*Y[5];
+   *   X+=6;
+   *   Y+=6;
+   *}
+   */ 
    LOOP:
       fldmIAs pX!,{xV} //xV = *pX; also increments pX
       fldmIAs pY!,{yV} //yV = *pY; also increments pY
@@ -90,6 +103,14 @@ ATL_UDOT:
    CLEANUP:
    adds N,N,#6         //N+=6; if(N<=0)
    bLE DONE            //   skip cleanup
+   /*
+   *for(N+=6;N>0;N--)
+   *{
+   *   sum0 += X[0]*Y[0];
+   *   X+=1;
+   *   Y+=1;
+   *}
+   */
    LOOP2:              //cleanup loop
       fldmIAs pX!,{xV} //xV = *pX; also increments pX
       fldmIAs pY!,{yV} //yV = *pY; also increments pY

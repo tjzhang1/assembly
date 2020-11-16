@@ -88,6 +88,7 @@ dgemm_asg:
          fmuldNE vC,vC,beta   //   vC = beta*C[0] if beta != 0.0
          LOOPK:                  //loop through K elements for dot
          //{
+	    //using ptr arithmetic for indexing b/c can't use fldr with iregs
             fldmIAd pA!,{vA}     //load A and increment ptr
             fldmIAd pB!,{vB}     //load B and increment ptr
             fmacd dp,vA,vB       //dp += vA*vB
