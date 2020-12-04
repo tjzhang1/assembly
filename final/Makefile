@@ -56,7 +56,7 @@ xtimSortC : force_build
 xtstSortC0 : force_build
 	$(CC) $(CCFLAGS) -DWORD_ONLY -DSMALL_WORD -o $@ tstSort.c $(mrgF).c
 xtimSortC0 : force_build
-	$(CC) $(CCTFLAGS) -DWORD_ONLY -DSMALL_WORD -o $@ tstSort.c $(mrgF).c
+	$(CC) $(CCTFLAGS) -DWORD_ONLY -DSMALL_WORD -o $@ timSort.c $(mrgF).c
 
 xtstSort : force_build
 	$(CC) $(CCFLAGS) -o $@ tstSort.c $(mrgF).S

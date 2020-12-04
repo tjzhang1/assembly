@@ -19,8 +19,8 @@ void *mrgChains
 #else
 word_t *mrgChainsC
 (
-   word_t *lb,      // address of left base node 
-   word_t *rb,      // address of right base node
+   word_t *lb,      /* address of left base node */
+   word_t *rb,      /* address of right base node */
    word_t *endL,    //addr of end node of lb
    word_t *endR,    //addr of end node of rb
    word_t **ML      //OUT: points to end of merged list
@@ -53,34 +53,15 @@ word_t *mrgChainsC
       *ML = endL;
       endR->next=lb;
       return rb;
-   }
-   //ASSUME: lb will always run out before rb, saving us extra checks
-   //   This always occors if max lb <= max rb
-   //if max lb > max rb, swap lb and rb to make this assumption true
-   if (endValL > endValR)
-   {
-      word_t *tmp;
-      //last node of merged list is endL now
-      *ML = endL;
-      //swap lb and rb
-      tmp = lb;
-      lb = rb;
-      rb = tmp;
-      //also swap lbLen and rbLen
-      lbVal ^= rbVal;
-      rbVal ^= lbVal;
-      lbVal ^= rbVal;
-   }
-   else
-      //the last node of merged list is endR
-      *ML = endR; 
+   } 
    /*initialize first item in new list by comparing left and right*/
-   if(lbVal <= rbVal)
+   if(lbVal < rbVal)
    {
       newListHead = lb; /*initialize the base ptr for new list*/
       lb = lb->next;    /*increment the top of the left buffer*/
       if(!lb)           //if lb empty,
       {
+         *ML = endR;
          newListHead->next=rb;   //append rb
          return newListHead;     //return newList
       }
@@ -88,59 +69,47 @@ word_t *mrgChainsC
    }
    else
    {
-      newListHead = rb; //initialize the base ptr for new list
-      rb = rb->next;    //increment the top of the right buffer
-      //don't need to check if rb->next is empty, lb empty before rb
-      rbVal = rb->len;  //update rbVal
+      newListHead = rb; /*initialize the base ptr for new list*/
+      rb = rb->next;    /*increment the top of the right buffer*/
+      if(!rb)           //if rb empty,
+      {
+         *ML = endL;
+         newListHead->next=lb;   //append lb
+         return newListHead;     //return newList
+      }
+      rbVal = rb->len;  //otherwise, update rbVal
    }
    curr = newListHead;
    /*comparison loop, using both lb and rb*/
    while(1)
    {
-      //compare the first item in the left to the first item in the right
-      if(lbVal <= rbVal)
+      /*compare the first item in the left to the first item in the right*/
+      if(lbVal < rbVal)
       {
          curr->next = lb;     //next node is lb
          curr = lb;           //curr=curr->next
          lb = lb->next;       //increment lb
          if(!lb)              //if lb empty,
          {
+            *ML = endR;
             curr->next=rb;       //append rb
             return newListHead;
          }
          lbVal = lb->len;  //otherwise, update lbVal
-         //continue left: don't need to set the next pointer b/c curr->next
-         //already points to the next item in lb
-         while(lbVal <= rbVal)
-         {
-            curr = lb;
-            lb = lb->next;
-            if(!lb)
-            {
-               curr->next=rb;  //append rb
-               return newListHead;
-            }
-            lbVal = lb->len;
-         }
       }
-      //otherwise, set the first item in right as the next
+      /*otherwise, set the first item in right as the first in new list*/
       else
       {
          curr->next = rb;     //next node is rb
          curr = rb;           //curr=curr->next
          rb = rb->next;       //increment rb
-         //don't need to check if rb->next is empty, lb empty before rb
-         rbVal = rb->len;     // update rbVal
-         //continue right: don't need to set the next pointer b/c curr-next
-         //already points to the next item in rb
-         //can't be <= or else there's a chance rb runs out of nodes first
-         while(rbVal < lbVal)  
+         if(!rb)              //if rb empty,
          {
-            curr = rb;
-            rb = rb->next;
-            //don't need to check if rb->next is empty, lb empty before rb
-            rbVal = rb->len;
+            *ML = endL;
+            curr->next=lb;       //append lb
+            return newListHead;
          }
+         rbVal = rb->len;  //otherwise, update rbVal
       }
    } //end while
 }
@@ -160,7 +129,6 @@ void *mrgSortR
    void *UB 
 );
 #else
-
 word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
 (                   /*          using merge sort, so O( N log2(N) )         */
    unsigned int N,  /* number of nodes in list ub */
@@ -185,24 +153,6 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
       //null terminate
       bp->next = NULL;
       return bp;
-   }
-   else if (N == 2)  //N = 2 case
-   {
-      word_t *n0=bp, *n1=bp->next; //node 1 and node 2
-      int n0Val=n0->len, n1Val=n1->len;
-
-      *UB = n1->next;
-      if(n0Val <= n1Val)  //already sorted
-      {
-         *ML = n1;
-         n1->next = NULL;
-         return n0;
-      }
-      //if not sorted, then swap n0 and n1
-      n1->next = n0;
-      n0->next = NULL;
-      *ML = n0;
-      return n1;
    }
    //bp is always non-NULL and N>0 thanks to wrapper function
    word_t *lb, *rb;
