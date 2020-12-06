@@ -19,7 +19,7 @@ void *mrgChains
 #else
 word_t *mrgChainsC
 (
-//   int nL,          //num nodes remaining in lb
+   int nL,          //num nodes remaining in lb
    word_t *lb,      //address of left base node
    word_t *rb,      //address of right base node
    int lbVal,       //val of first node of lb
@@ -36,16 +36,20 @@ word_t *mrgChainsC
    word_t *newListHead, *curr;
    //Ptrs to preload lb->next and rb->next
    word_t *nextL=lb->next, *nextR=rb->next;
+   //variables to preload next value
+//   int nextLV=nextL->len, nextRV=nextR->len;
    /*initialize first item in new list by comparing left and right*/
    if(lbVal <= rbVal)
    {
+      nL--;
       newListHead = lb; //initialize the base ptr for new list
       lb = nextL;       //increment the top of the left buffer
       //Don't need to check if lb empty because that would mean lb has only one
       //   element < minR. If lb has only one element, then minL=maxL < minR,
       //   which was already handled in mrgSortRC.
       nextL = nextL->next;  //begin loading next node into nextL
-      lbVal = lb->len;  //update lbVal
+      lbVal = lb->len;   //update lbVal
+ //     nextLV = nextL->len;
    }
    else
    {
@@ -62,10 +66,11 @@ word_t *mrgChainsC
       //compare the first item in the left to the first item in the right
       if(lbVal <= rbVal)
       {
+         nL--;
          curr->next = lb;     //next node is lb
          curr = lb;           //curr=curr->next
          lb = nextL;          //increment lb
-         if(!nextL)           //if lb empty,
+         if(!nL)              //if lb empty,
          {
             curr->next=rb;       //append rb
             return newListHead;
@@ -76,10 +81,11 @@ word_t *mrgChainsC
          //already points to the next item in lb
          while(lbVal <= rbVal)
          {
+            nL--;
             //don't need to write curr->next
             curr = lb;
             lb = nextL;
-            if(!nextL)
+            if(!nL)
             {
                curr->next=rb;  //append rb
                return newListHead;
@@ -214,14 +220,14 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
       //last node of merged list is endL now
       *ML = endL;
       //call mrgChains with lb and rb swapped
-      return mrgChainsC(rb,lb,minR,minL);
+      return mrgChainsC(rightHalf,rb,lb,minR,minL);
    }
    else
    {
       //the last node of merged list is endR
       *ML = endR;
       //call mrgChains with lb and rb in standard order
-      return mrgChainsC(lb,rb,minL,minR);
+      return mrgChainsC(leftHalf,lb,rb,minL,minR);
    }
 }
 #endif 
