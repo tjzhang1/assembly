@@ -54,14 +54,12 @@ word_t *mrgSort(word_t *bp, unsigned int gNxt, unsigned int gI)
 
 mrgSort:
    cmp bp,#0           //if bp NULL
-      it EQ
       bxEQ LR          //   return bp
    push {r4-r9,LR}     //save caller's variables
    //wrapper only uses r4-r7, but mrgChains uses r8,r9, so
    //   save them once in wrapper function
    ldr curr,[bp,gNxt]  //curr=bp->next
    cmp curr,#0         //if there's only one element,
-      it EQ
       bEQ DONE         //   cleanup and return
    mov sorted,#1       //assume sorted to start
    mov N,#1            //start N=1 since there's at least 1 node
@@ -79,11 +77,9 @@ mrgSort:
       mov prevLen,currLen    //prevLen = currLen (update prevLen)
       adds N,#1              //N++; counts num nodes
       cmp curr,#0            //if(curr)
-         it NE
    bNE LOOP                  //   continue;
 
    cmp sorted,#0       //if(sorted)
-      it NE
       bNE DONE         //   return bp;
 
    //             r0 r1 r2   r3 r12 r7
@@ -168,9 +164,29 @@ void *mrgSortRC
       bp->next = NULL;
       return bp;
    }
+   else if (N == 2)  //N = 2 case
+   {
+      word_t *n0=bp, *n1=bp->next; //node 1 and node 2
+      int n0Val=n0->len, n1Val=n1->len;
+
+      *UB = n1->next;
+      if(n0Val <= n1Val)  //already sorted
+      {
+         *ML = n1;
+         n1->next = NULL;
+         return n0;
+      }
+      //if not sorted, then swap n0 and n1
+      n1->next = n0;
+      n0->next = NULL;
+      *ML = n0;
+      return n1;
+   }
    //bp is always non-NULL and N>0 thanks to wrapper function
    word_t *lb, *rb;
    word_t *endL, *endR;  //ptrs to last nodes of lb and rb
+   int minL, minR;       //holds top (min) val of lb and rb
+   int maxL, maxR;       //holds last (max) val of lb and rb
    //initialize lengths of left and right buffers for splitting
    unsigned int leftHalf=(N>>1), rightHalf = N-leftHalf;
    //mrgSort on left nodes
@@ -181,8 +197,43 @@ void *mrgSortRC
    rb = mrgSortRC(rightHalf,*UB,gNxt,gI,&endR,UB);
    //UB updated to next unsorted spot
    //endR set to last node in rb
-   //return mergeLists on left and right
-   return mrgChains(lb,rb,gNxt,gI,endL,endR,ML);
+   maxL = endL->len;
+   minR = rb->len;
+   minL = lb->len;
+   maxR = endR->len;
+   //if max val in lb <= min val in rb, append rb to lb
+   if(maxL <= minR)
+   {
+      *ML = endR;
+      endL->next=rb;
+      return lb;
+   }
+   //if max val in rb <= smallest val in lb, append lb to rb
+   else if (maxR <= minL)
+   {
+      *ML = endL;
+      endR->next=lb;
+      return rb;
+   }
+   //Make it so lb will always run out of nodes before rb. This always occurs
+   //  if max lb <= max rb. Benefits: simplifying mrgChains loops
+   //  Since lb runs out of nodes before rb, then only need to check when lb is
+   //  empty before appending the rest of rb onto lb.
+   //if max lb > max rb, swap lb and rb to make this assumption true
+   if (maxL > maxR)
+   {
+      //last node of merged list is endL now
+      *ML = endL;
+      //call mrgChains with lb and rb swapped
+      return mrgChainsC(rightHalf,leftHalf,rb,lb,minR,minL);
+   }
+   else
+   {
+      //the last node of merged list is endR
+      *ML = endR;
+      //call mrgChains with lb and rb in standard order
+      return mrgChainsC(leftHalf,rightHalf,lb,rb,minL,minR);
+   }
 }
 */
 
@@ -192,11 +243,10 @@ void *mrgSortRC
  * RETURNS: base pointer to sorted list
  */
 
-
 .text
 .thumb
 .syntax unified
-.local BASE
+.local BASE1,BASE2
 .global mrgSortR
 
 #define N r0              //num nodes to sort
@@ -206,10 +256,10 @@ void *mrgSortRC
 #define gI r3             //num bytes from start of struct for ->value
 #define endL r4           //addr of last node of left buffer
 #define endR r5           //addr of last node of right buffer
-#define pML r5            //ptr to addr of last node in mrged list, same as r12
 #define nr r6             //num nodes in right half
 #define lb r6             //left buffer
 #define pUB r7            //ptr to addr of next node after sorted list
+#define pML r12           //ptr to addr of last node in mrged list
 
 mrgSortR:
    /* Reg configuration */
@@ -218,16 +268,17 @@ mrgSortR:
    //r2: gNxt
    //r3: gI
    //r4: endL             
-   //r5: endR,pML         //pML temporarily used here to perform ldr/str
+   //r5: endR
    //r6: nr,lb
    //r7: pUB              //don't need to save pUB because it is unchanging
    //r12: pML             //similarly, pML is unchanging so no need to save
    push {r4-r6,LR}        //store caller's variables
 
    //bp is always non-NULL and N>0 thanks to wrapper function
-   mov pML,r12            //load pML from high reg to do load
    cmp N,#1               //if(N==1)
-   bEQ BASE               //   perform base case code
+      bEQ BASE1           //   perform base case code
+   cmp N,#2               //if(N==2)
+      bEQ BASE2           //   perform base case for N==2 code
    lsrs nr,N,#1           //nr = N >> 1 = N/2
    subs nl,N,nr           //nl = N-nr = N-N/2
    #undef N               //N no longer needed
@@ -245,6 +296,16 @@ mrgSortR:
                           //         r0  r1 r2 r3 r12 r7
    bl mrgSortR            //mrgSortR(nr,*UB,gN,gI,ML,UB)
    ldr endR,[pML]         //endR = *ML = addr of last node of rb
+   //Current reg configuration:
+   //r0: rb
+   //r1: ____ (trash)
+   //r2: gN
+   //r3: gInt
+   //r4: endL
+   //r5: endR
+   //r6: lb
+   //r7: pUB
+   //r12: pML
 
    movs r1,r0             //set rb to arg1 for mrgChains
    movs r0,lb             //arg0=lb for mrgChains
@@ -254,7 +315,7 @@ pop {r4-r6,PC}            //restore caller's r4-r6, and put LR->PC
 //bx LR (implicit)
 
 #define next r6
-BASE:                     //base case: if(N==1)
+BASE1:                    //base case: if(N==1)
    ldr next,[bp,gNxt]     //load bp->next
    str next,[pUB]         //*UB = bp->next; points to next unsorted node
    str bp,[pML]           //*ML = bp; points to last sorted node (bp)
