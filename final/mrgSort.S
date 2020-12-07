@@ -54,13 +54,14 @@ word_t *mrgSort(word_t *bp, unsigned int gNxt, unsigned int gI)
 
 mrgSort:
    cmp bp,#0           //if bp NULL
+      it EQ
       bxEQ LR          //   return bp
-   push {r4-r9,LR}     //save caller's variables
+   push {r4-r11,LR}    //save caller's variables
    //wrapper only uses r4-r7, but mrgChains uses r8,r9, so
    //   save them once in wrapper function
    ldr curr,[bp,gNxt]  //curr=bp->next
    cmp curr,#0         //if there's only one element,
-      bEQ DONE         //   cleanup and return
+   bEQ DONE            //   cleanup and return
    mov sorted,#1       //assume sorted to start
    mov N,#1            //start N=1 since there's at least 1 node
    ldr prevLen,[bp,gI] //prevLen = bp->value;
@@ -80,7 +81,7 @@ mrgSort:
    bNE LOOP                  //   continue;
 
    cmp sorted,#0       //if(sorted)
-      bNE DONE         //   return bp;
+   bNE DONE            //   return bp;
 
    //             r0 r1 r2   r3 r12 r7
    //call mrgSortR(N,bp,gNxt,gI,&ML,&UB)
@@ -124,7 +125,7 @@ mrgSort:
    */
    add SP,SP,#LSZ      //deallocate local vars
    DONE:
-pop {r4-r9,PC}         //restore caller's r4-r9 and return
+pop {r4-r11,PC}        //restore caller's r4-r9 and return
 
 #undef bp
 #undef gNxt
@@ -246,7 +247,7 @@ void *mrgSortRC
 .text
 .thumb
 .syntax unified
-.local BASE1,BASE2
+.local BASE1,BASE2,CLEANUP
 .global mrgSortR
 
 #define N r0              //num nodes to sort
@@ -259,6 +260,10 @@ void *mrgSortRC
 #define nr r6             //num nodes in right half
 #define lb r6             //left buffer
 #define pUB r7            //ptr to addr of next node after sorted list
+#define maxL r8           //value of endL->len
+#define minL r9           //value of lb->len
+#define maxR r10          //value of endR->len
+#define minR r11          //value of rb->len
 #define pML r12           //ptr to addr of last node in mrged list
 
 mrgSortR:
@@ -270,15 +275,19 @@ mrgSortR:
    //r4: endL             
    //r5: endR
    //r6: nr,lb
-   //r7: pUB              //don't need to save pUB because it is unchanging
-   //r12: pML             //similarly, pML is unchanging so no need to save
+   //r7: pUB              //Don't need to save pUB because it is unchanging
+   //r8: maxL r8          //Don't need to save r8-r11 because they don't need
+   //r9: minL r9          //   to maintain value across calls to mrgSortR. Also
+   //r10: maxR r10        //   r8-r11 were already saved by the wrapper
+   //r11: minR r11        //   function.
+   //r12: pML             //pML is unchanging so no need to save
    push {r4-r6,LR}        //store caller's variables
 
    //bp is always non-NULL and N>0 thanks to wrapper function
    cmp N,#1               //if(N==1)
-      bEQ BASE1           //   perform base case code
-   cmp N,#2               //if(N==2)
-      bEQ BASE2           //   perform base case for N==2 code
+   bEQ BASE1              //   perform base case code
+//   cmp N,#2               //if(N==2)
+//      bEQ BASE2           //   perform base case for N==2 code
    lsrs nr,N,#1           //nr = N >> 1 = N/2
    subs nl,N,nr           //nl = N-nr = N-N/2
    #undef N               //N no longer needed
@@ -306,13 +315,50 @@ mrgSortR:
    //r6: lb
    //r7: pUB
    //r12: pML
-
+/*
+   maxL = endL->len;
+   minR = rb->len;
+   minL = lb->len;
+   maxR = endR->len;
+   //if max val in lb <= min val in rb, append rb to lb
+   if(maxL <= minR)
+   {
+      *ML = endR;
+      endL->next=rb;
+      return lb;
+   }
+   //if max val in rb <= smallest val in lb, append lb to rb
+   else if (maxR <= minL)
+   {
+      *ML = endL;
+      endR->next=lb;
+      return rb;
+   }
+*/
+   ldr minL,[lb,gI]       //Val of first node in lb is min
+   ldr maxR,[endR,gI]     //Val of last node in rb is max
+   ldr minR,[r0,gI]       //Val of first node in rb in min
+   ldr maxL,[endL,gI]     //Val of last node in lb is max
+   cmp maxL,minR          //if (maxL <= minR)
+   bLE CAT_RB             //   append rb to lb
+   cmp maxR,minL          //if (maxR <= minL)
+   bLE CAT_LB             //   append lb to rb
    movs r1,r0             //set rb to arg1 for mrgChains
    movs r0,lb             //arg0=lb for mrgChains
                           //                 r0 r1 r2 r3 r12 r4  r5
    bl mrgChains           //return mrgChains(lb,rb,gN,gI,ML,endL,endR)
 pop {r4-r6,PC}            //restore caller's r4-r6, and put LR->PC
-//bx LR (implicit)
+
+CAT_RB:                   //occurs when maxL <= minR, append rb to lb
+   str endR,[pML]         //last node of merged list is endR
+   str r0,[endL,gNxt]     //append rb to endL
+   mov r0,lb              //return lb as first node of merged list
+pop {r4-r6,PC}            //restore caller's r4-r6 and put LR->PC
+
+CAT_LB:                   //occurs when maxR <= minL, append lb to rb
+   str endL,[pML]         //last node of merged list is endL
+   str lb,[endR,gNxt]     //append lb to endR
+pop {r4-r6,PC}            //restore caller's r4-r6 and put LR-PC
 
 #define next r6
 BASE1:                    //base case: if(N==1)
@@ -323,7 +369,6 @@ BASE1:                    //base case: if(N==1)
    str next,[bp,gNxt]     //bp->next = NULL; for mrgChains to work
    movs r0,bp             //return bp;
 pop {r4-r6,PC}            //restore caller's r4-r7, and put LR->PC
-//bx LR (implicit)
 
 #undef bp
 #undef gNxt
@@ -334,6 +379,10 @@ pop {r4-r6,PC}            //restore caller's r4-r7, and put LR->PC
 #undef pML
 #undef pUB
 #undef next
+#undef maxL
+#undef minL
+#undef maxR
+#undef minR
 
 //-----------------------------------------------------------------------------
 //                   mrgChains(lb,rb,gN,gI,ML,endL,endR)
