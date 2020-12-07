@@ -239,14 +239,20 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
       //last node of merged list is endL now
       *ML = endL;
       //call mrgChains with lb and rb swapped
+      #ifdef THUMB_CHAINS
+      #else
       return mrgChainsC(rightHalf,leftHalf,rb,lb,minR,minL);
+      #endif
    }
    else
    {
       //the last node of merged list is endR
       *ML = endR;
       //call mrgChains with lb and rb in standard order
+      #ifdef THUMB_CHAINS
+      #else
       return mrgChainsC(leftHalf,rightHalf,lb,rb,minL,minR);
+      #endif
    }
 }
 #endif 
