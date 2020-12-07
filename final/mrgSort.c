@@ -37,35 +37,35 @@ word_t *mrgChainsC
    word_t *newListHead, *curr;
    //Ptrs to preload lb->next and rb->next
    word_t *nextL=lb->next, *nextR=rb->next;
-   //since we have access to nL, nextLV is for preloading nextL->len
+   //variables for preloading nextL->len and nextR->len
    int nextLV,nextRV;
-   if(nL > 1)
+   if(nL > 1)  //ensures we load nextL->len safely
       nextLV=nextL->len;
-   if(nR > 1)
+   if(nR > 1)  //ensures we load nextR->len safely
       nextRV=nextR->len;
-   /*initialize first item in new list by comparing left and right*/
+   //initialize first item in new list by comparing left and right
    if(lbVal <= rbVal)
    {
-      nL--;
+      nL--;             //decrement early so it is ready later
       newListHead = lb; //initialize the base ptr for new list
       lb = nextL;       //increment the top of the left buffer
       lbVal = nextLV;   //update lbVal
       //Don't need to check if lb empty because that would mean lb has only one
-      //   element < minR. If lb has only one element, then minL=maxL < minR,
+      //   element < minR. If this were true, then (minL=maxL) < minR, a case
       //   which was already handled in mrgSortRC.
       nextL = nextL->next;  //begin loading next node into nextL
-      if(nL>1)
-         nextLV = nextL->len;  //update nextLV
+      if(nL > 1)  //ensures we load nextL->len safely
+         nextLV = nextL->len;
    }
    else
    {
-      nR--;
+      nR--;             //decrement early so it is ready later
       newListHead = rb; //initialize the base ptr for new list
       rb = nextR;       //increment the top of the right buffer
       //don't need to check if rb is empty, lb empty before rb
-      rbVal = nextRV;  //update rbVal
+      rbVal = nextRV;   //update rbVal
       nextR = nextR->next;  //begin loading next node into nextR
-      if(nR > 1)
+      if(nR > 1)  //ensures we load nextR->len safely
          nextRV=nextR->len;
    }
    curr = newListHead;
@@ -75,62 +75,62 @@ word_t *mrgChainsC
       //compare the first item in the left to the first item in the right
       if(lbVal <= rbVal)
       {
-         nL--;
+         nL--;                //decrement early so it is ready later
          curr->next = lb;     //next node is lb
          curr = lb;           //curr=curr->next
-         if(!nL)              //if lb empty
+         if(!nL)              //if lb empty, append rb and return
          {
-            curr->next=rb;       //append rb
+            curr->next=rb;
             return newListHead;
          }
-         lb = nextL;          //increment lb
-         lbVal = nextLV;  //update lbVal
-         nextL = nextL->next; //begin loading next value of nextL
-         if(nL > 1)
+         lb = nextL;          //otherwise, increment lb
+         lbVal = nextLV;      //update lbVal
+         nextL = nextL->next; //load next val of lb for subsequent loop iter
+         if(nL > 1)  //ensures we load nextL->len safely
             nextLV=nextL->len;
-         //continue left: don't need to set the next pointer b/c curr->next
+         //If lbVal <= rbVal, don't need to set the next pointer b/c curr->next
          //already points to the next item in lb
          while(lbVal <= rbVal)
          {
-            nL--;
-            //don't need to write curr->next
-            curr = lb;
-            if(!nL)
+            nL--;             //decrement early so it is ready later
+            //don't need to write curr->next = lb
+            curr = lb;        //next node is lb
+            if(!nL)           //if lb empty, append rb and return
             {
-               curr->next=rb;  //append rb
+               curr->next=rb;
                return newListHead;
             }
-            lb = nextL;
-            lbVal = nextLV;
-            nextL = nextL->next;
-            if(nL > 1)
+            lb = nextL;       //otherwise, increment lb
+            lbVal = nextLV;   //update lbVal
+            nextL = nextL->next;//load next val of lb for subsequent loop iter
+            if(nL > 1)  //ensures we load nextL->len safely
                nextLV=nextL->len;
          }
       }
       //otherwise, set the first item in right as the next
       else
       {
-         nR--;
+         nR--;                //decrement early so it is ready later
          curr->next = rb;     //next node is rb
          curr = rb;           //curr=curr->next
-         rb = nextR;          //increment rb
          //don't need to check if rb is empty, lb empty before rb
-         rbVal = nextRV;  //update rbVal
-         nextR = nextR->next; //increment nextR
-         //continue right: don't need to set the next pointer b/c curr-next
-         //   already points to the next item in rb
-         //can't be <= or else there's a chance rb runs out of nodes first
-         if(nR > 1)
+         rb = nextR;          //increment rb
+         rbVal = nextRV;      //update rbVal
+         nextR = nextR->next; //load next val of rb for subsequent loop iter
+         if(nR > 1)  //ensures we load nextR->len safely
             nextRV=nextR->len;
+         //If rbVal < lbVal, don't need to set the next pointer b/c curr-next
+         //   already points to the next item in rb.
+         //Can't be <= or else there's a chance rb runs out of nodes first
          while(rbVal < lbVal)  
          {
-            nR--;
-            curr = rb;
-            rb = nextR;
+            nR--;             //decrement early so it is ready later
+            curr = rb;        //next node is rb
             //don't need to check if rb is empty, lb empty before rb
-            rbVal = nextRV;
-            nextR = nextR->next;
-            if(nR > 1)
+            rb = nextR;       //increment rb
+            rbVal = nextRV;   //update rbVal
+            nextR = nextR->next; //load next val of rb for subsequent loop iter
+            if(nR > 1)  //ensures we load nextR->len safely
                nextRV=nextR->len;
          }
       }
@@ -230,9 +230,9 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
       return rb;
    }
    //Make it so lb will always run out of nodes before rb. This always occurs
-   //  if max lb <= max rb. Benefits: simplifying mrgChains loops by reducing
-   //  num of arguments needed to pass in. Since lb runs out of
-   //  nodes before rb, then only need to check how many nodes left in lb.
+   //  if max lb <= max rb. Benefits: simplifying mrgChains loops
+   //  Since lb runs out of nodes before rb, then only need to check when lb is
+   //  empty before appending the rest of rb onto lb.
    //if max lb > max rb, swap lb and rb to make this assumption true
    if (maxL > maxR)
    {
