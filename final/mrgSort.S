@@ -247,7 +247,7 @@ void *mrgSortRC
 .text
 .thumb
 .syntax unified
-.local BASE1,BASE2,CLEANUP
+.local BASE1,BASE2,CLEANUP,CAT_LB,CAT_RB
 .global mrgSortR
 
 #define N r0              //num nodes to sort
@@ -276,18 +276,18 @@ mrgSortR:
    //r5: endR
    //r6: nr,lb
    //r7: pUB              //Don't need to save pUB because it is unchanging
-   //r8: maxL r8          //Don't need to save r8-r11 because they don't need
-   //r9: minL r9          //   to maintain value across calls to mrgSortR. Also
-   //r10: maxR r10        //   r8-r11 were already saved by the wrapper
-   //r11: minR r11        //   function.
+   //r8: maxL             //Don't need to save r8-r11 because they don't need
+   //r9: minL             //   to maintain value across calls to mrgSortR. Also
+   //r10: maxR            //   r8-r11 were already saved by the wrapper
+   //r11: minR            //   function.
    //r12: pML             //pML is unchanging so no need to save
    push {r4-r6,LR}        //store caller's variables
 
    //bp is always non-NULL and N>0 thanks to wrapper function
    cmp N,#1               //if(N==1)
    bEQ BASE1              //   perform base case code
-//   cmp N,#2               //if(N==2)
-//      bEQ BASE2           //   perform base case for N==2 code
+   cmp N,#2               //if(N==2)
+   bEQ BASE2              //   perform base case for N==2 code
    lsrs nr,N,#1           //nr = N >> 1 = N/2
    subs nl,N,nr           //nl = N-nr = N-N/2
    #undef N               //N no longer needed
@@ -314,27 +314,11 @@ mrgSortR:
    //r5: endR
    //r6: lb
    //r7: pUB
+   //r8: maxL (trash)
+   //r9: minL (trash)
+   //r10: maxR (trash)
+   //r11: minR (trash)
    //r12: pML
-/*
-   maxL = endL->len;
-   minR = rb->len;
-   minL = lb->len;
-   maxR = endR->len;
-   //if max val in lb <= min val in rb, append rb to lb
-   if(maxL <= minR)
-   {
-      *ML = endR;
-      endL->next=rb;
-      return lb;
-   }
-   //if max val in rb <= smallest val in lb, append lb to rb
-   else if (maxR <= minL)
-   {
-      *ML = endL;
-      endR->next=lb;
-      return rb;
-   }
-*/
    ldr minL,[lb,gI]       //Val of first node in lb is min
    ldr maxR,[endR,gI]     //Val of last node in rb is max
    ldr minR,[r0,gI]       //Val of first node in rb in min
@@ -343,6 +327,32 @@ mrgSortR:
    bLE CAT_RB             //   append rb to lb
    cmp maxR,minL          //if (maxR <= minL)
    bLE CAT_LB             //   append lb to rb
+
+   //Make it so lb will always run out of nodes before rb. This always occurs
+   //  if max lb <= max rb. Benefits: simplifying mrgChains loops
+   //  Since lb runs out of nodes before rb, then only need to check when lb is
+   //  empty before appending the rest of rb onto lb.
+   //if max lb > max rb, swap lb and rb to make this assumption true
+/*
+   if (maxL > maxR)
+   {
+      //last node of merged list is endL now
+      *ML = endL;
+      //call mrgChains with lb and rb swapped
+      return mrgChainsC(rightHalf,leftHalf,rb,lb,minR,minL);
+   }
+   else
+   {
+      //the last node of merged list is endR
+      *ML = endR;
+      //call mrgChains with lb and rb in standard order
+      return mrgChainsC(leftHalf,rightHalf,lb,rb,minL,minR);
+   }
+*/
+   cmp maxL,maxR
+      ite GT
+      strGT endL,[pML]
+      strLE endR,[pML]
    movs r1,r0             //set rb to arg1 for mrgChains
    movs r0,lb             //arg0=lb for mrgChains
                           //                 r0 r1 r2 r3 r12 r4  r5
@@ -370,6 +380,27 @@ BASE1:                    //base case: if(N==1)
    movs r0,bp             //return bp;
 pop {r4-r6,PC}            //restore caller's r4-r7, and put LR->PC
 
+#define n1 r0
+BASE2:                    //base case: if(N==2)
+   ldr n1,[bp,gNxt]       //load node 1
+   ldr minL,[bp,gI]       //load val of node 0
+   ldr minR,[n1,gI]       //load val of node 1
+   ldr next,[n1,gNxt]     //load n1->next
+   str next,[pUB]         //*UB = n1->next; points to next unsorted node
+   eors next,next         //next = #0 = next^next
+   //If val in bp > val in n1, swap them so they are in order
+   cmp minL,minR          //The following IT blocks have the following logic:
+      ittee GT            //if(n0 > n1)
+      strGT bp,[pML]      //   *ML = n0; last merged node is n0
+      strGT next,[bp,gNxt]//   bp->next=NULL;
+      strLE n1,[pML]      //   n1->next=bp;
+      strLE next,[n1,gNxt]//   return n1;
+      ite GT              //else
+      strGT bp,[n1,gNxt]  //   *ML = n1;
+      movLE r0,bp         //   n1->next=NULL;
+                          //   return bp;
+pop {r4-r6,PC}
+
 #undef bp
 #undef gNxt
 #undef gI
@@ -383,6 +414,7 @@ pop {r4-r6,PC}            //restore caller's r4-r7, and put LR->PC
 #undef minL
 #undef maxR
 #undef minR
+#undef n1
 
 //-----------------------------------------------------------------------------
 //                   mrgChains(lb,rb,gN,gI,ML,endL,endR)
@@ -442,88 +474,36 @@ ASSUMES: input lists have at least one node, and NULL terminated
 .text
 .thumb
 .syntax unified
-.local DONE1,DONE2,LOOP2,ELSE1,ELSE2,QRET3,QRET4
+.local DONE1,DONE2,LOOP2,ELSE1,ELSE2
 .global mrgChains
 
 #define lb r0          //holds the top of left chain
 #define rb r1          //holds the top of right chain
 #define gNxt r2        //holds offset in bytes to ptr to next node
 #define gInt r3        //holds offset in bytes to value of node
-#define endL r4        //holds last node of lb
-#define endR r5        //holds last node of rb
-#define vl r6          //holds first val of lb = min val of lb
-#define vr r6          //holds first val of rb = min val of rb
-#define maxL r7        //holds val of endL = max val of lb
-#define maxR r7        //holds val of endR = max val of rb
-#define FSZ 4*4        //4 regs stored
+#define head r4        //holds the base ptr of sorted list
+#define curr r5        //holds curr node of sorted list
+#define vl r9          //val of first node in lb
+#define vr r11         //val of first node in rb
 
 mrgChains:
-   //Reg configuration A
+   //Reg configuration
    //r0: lb
    //r1: rb
    //r2: gNxt
    //r3: gInt
-   //r4: endL          //doesn't need to be saved, mrgSortR doesn't reuse
-   //r5: endR          //doesn't need to be saved, mrgSortR doesn't reuse
-   //r6: vl / vr
-   //r7: maxR / maxL
+   //r4: head
+   //r5: curr
+   //r6: ___
+   //r7: pUB           //needs to be saved, mrgSortR reuses r7
+   //r8: ___
+   //r9: vl            //doesn't need to be saved, mrgSortR doesn't reuse
+   //r10: ___
+   //r11: vr           //doesn't need to be saved, mrgSortR doesn't reuse
    //r12: pML
    push {r6,r7}           //save caller's variables
-   /*
-      if(maxL <= rbVal)
-      {
-         *ML = endR;
-         endL->next=rb;
-         return lb;
-      }
-      else if (maxR <= lbVal)
-      {
-         *ML = endL;
-         endR->next=lb;
-         return rb;
-      }
-   */
-   ldr vl,[lb,gInt]       //load int value from lb
-   ldr maxR,[endR,gInt]   //load int value from endR
-   cmp maxR,vl            //if(max(rb) <= min(lb))
-   bLE QRET3              //   concatenate lb to rb and return
-   mov r8,vl              //save vl by moving to higher reg
-   #undef vl              //vl now in r8
-   #undef maxR            //free r7 for maxL
-   ldr vr,[rb,gInt]       //load int value from rb
-   ldr maxL,[endL,gInt]   //load int value from endL
-   cmp maxL,vr            //if(max(lb) <= min(rb))
-   bLE QRET4              //   concatenate rb to lb and return
-   //mov regs into better configuration
-   mov r7,r8              //restore vl from high reg
-   mov r8,endL            //store endL to high reg
-   mov r9,endR            //store endR to high reg
-   movs r4,lb             //make room for new list head
-   #undef maxL            //maxL no longer needed
-   #undef endL            //endL now in r8
-   #undef endR            //endR now in r9
-   #undef lb              //reassign lb to r4
-   #define head r0        //holds the base ptr of sorted list
-   #define lb r4          //new spot for lb
-   #define curr r5        //holds curr node of sorted list
-   #define endL r8        //new spot for endL
-   #define vl r7          //new spot for vl
-   #define endR r9        //new spot for endR
 
-   //Reg configuration B
-   //r0: head
-   //r1: rb
-   //r2: gNxt
-   //r3: gInt
-   //r4: lb
-   //r5: curr
-   //r6: vr
-   //r7: vl
-   //r8: endL
-   //r9: endR
-   /*
-      Initialize base pointer head
-   */
+   //Initialize base pointer head
    cmp vl,vr              //if(valLeft <= valRight)
       bGT ELSE1
       movs head,lb        //   head = lb; (set head of sorted list)
@@ -533,7 +513,7 @@ mrgChains:
       bEQ DONE1           //      skip loop
       ldr vl,[lb,gInt]    //   else update int value from lb
       b LOOP2             //   begin loop
-   ELSE1:                 //else if(valLeft > valRight)
+   ELSE1:                 //else
       movs head,rb        //   head = rb; (set head of sorted list)
       ldr rb,[rb,gNxt]    //   rb=rb->next; (increment rb)
       movs curr,head      //   keep track of current pos w/o losing head ptr
@@ -560,62 +540,14 @@ mrgChains:
          ldr vr,[rb,gInt]    //   else update int value from rb
 b LOOP2                      //      continue;
 
-
-//Clear reg configuration
-#undef head
-#undef rb
-#undef gNxt
-#undef gInt
-#undef curr
-#undef lb
-#undef vr
-#undef vl
-#undef endL
-#undef endR
-
-
-#define pML r6            //updated to point to last node
-/* Reg configuration A */
-#define lb r0             //holds the top of left chain
-#define rb r1             //holds the top of right chain
-#define gNxt r2           //holds offset in bytes to ptr to next node
-#define endL r4           //holds last node of lb
-#define endR r5           //holds last node of rb
-QRET3:                    //occurs if(max(rb) <= min(lb)) -> add lb to rb
-   mov pML,r12            //move pML to lower reg for str
-   str endL,[pML]         //*ML = endL
-   str lb,[endR,gNxt]     //append lb to end of rb
-   movs r0,rb             //return rb
-   pop {r6,r7}            //restore the rest of caller's variables
-bx LR
-
-QRET4:                    //occurs if(max(lb) <= min(rb)) -> add rb to lb
-   mov pML,r12            //move pML to lower reg for str
-   str endR,[pML]         //*ML = endR
-   str rb,[endL,gNxt]     //append rb to end of lb
-   pop {r6,r7}            //restore the rest of caller's variables
-bx LR                     //return lb
-#undef lb
-#undef endL
-#undef endR
-
-/* Reg configuration B */
-#define lb r4             //holds the top of left chain
-#define curr r5           //holds curr node of sorted list
-#define endL r8           //holds last node of lb
-#define endR r9           //holds last node of rb
 DONE1:                    //occurs if(!lb) -> add rb to curr
-   mov pML,r12            //move pML to lower reg for str
-   mov r7,endR            //mov endR from higher register
-   str r7,[pML]           //*ML = endR
    str rb,[curr,gNxt]     //append rb to current node
+   movs r0,head           //return head
    pop {r6,r7}            //restore the rest of caller's variables
 bx LR                     //return head (in r0 already)
 
 DONE2:                    //occurs if(!rb) -> add lb to curr
-   mov pML,r12            //move pML to lower reg for str
-   mov r7,endL            //mov endL from higher register
-   str r7,[pML]           //*ML = endL
    str lb,[curr,gNxt]     //append lb to current node
+   movs r0,head           //return head
    pop {r6,r7}            //restore the rest of caller's variables
 bx LR                     //return head (in r0 already)
