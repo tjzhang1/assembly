@@ -63,9 +63,9 @@ xtstSort : force_build
 xtimSort :  force_build
 	$(CC) $(CCTFLAGS) -o $@ timSort.c $(mrgF).S
 xtstSort0 : force_build
-	$(CC) $(CCFLAGS) -o $@ tstSort.c $(mrgF).S
+	$(CC) $(CCFLAGS) -DWORD_ONLY -DSMALL_WORD -o $@ tstSort.c $(mrgF).S
 xtimSort0 :  force_build
-	$(CC) $(CCTFLAGS) -o $@ timSort.c $(mrgF).S
+	$(CC) $(CCTFLAGS) -DWORD_ONLY -DSMALL_WORD -o $@ timSort.c $(mrgF).S
 #
 # This rules remove object and executables when they are no longer needed
 #

@@ -477,19 +477,23 @@ ASSUMES: input lists have at least one node, and NULL terminated
 .text
 .thumb
 .syntax unified
-.local DONE1,DONE2,LOOP2,ELSE1,ELSE2
+.local CLEANUP,ELSE1,TAKE_L,TAKE_R,CONT_L,CONT_R
 .global mrgChains
 
-#define lb r0          //holds the top of left chain
-#define rb r1          //holds the top of right chain
-#define gNxt r2        //holds offset in bytes to ptr to next node
-#define gInt r3        //holds offset in bytes to value of node
-#define nl r4
-#define nr r5
-#define head r6        //holds the base ptr of sorted list
-#define curr r7        //holds curr node of sorted list
-#define vl r8          //val of first node in lb
-#define vr r9          //val of first node in rb
+#define lb r0             //holds the top of left chain
+#define rb r1             //holds the top of right chain
+#define gNxt r2           //holds offset in bytes to ptr to next node
+#define gI r3             //holds offset in bytes to value of node
+#define nl r4             //num remaining nodes in lb
+#define nr r5             //num remaining nodes in rb
+#define head r6           //holds the base ptr of sorted list
+#define curr r7           //holds curr node of sorted list
+#define vl r8             //val of first node in lb
+#define vr r9             //val of first node in rb
+#define nextL r10         //preload lb->next
+#define nextR r11         //preload rb->next
+#define nextLV r12        //preload lb->next->len
+#define nextRV r14        //preload rb->next->len
 
 mrgChains:
    //Reg configuration
@@ -500,60 +504,116 @@ mrgChains:
    //r4: nl
    //r5: nr
    //r6: head
-   //r7: curr          //needs to be saved, mrgSortR uses r7
-   //r8: vl            //doesn't need to be saved, mrgSortR doesn't reuse
-   //r9: vr            //doesn't need to be saved, mrgSortR doesn't reuse
-   //r10: ___
-   //r11: ___
-   //r12: ___          //needs to be saved, mrgSortR uses r12
-   //r14: ___
-   push {r7,r12}          //save caller's variables
-
+   //r7: curr             //needs to be saved, mrgSortR uses r7
+   //r8: vl               //doesn't need to be saved, mrgSortR doesn't reuse
+   //r9: vr               //doesn't need to be saved, mrgSortR doesn't reuse
+   //r10: nextL
+   //r11: nextR
+   //r12: nextLV          //needs to be saved, mrgSortR uses r12
+   //r14: nextRV
+   push {r7,r12,LR}       //save caller's variables
+   //ASSUMES: lb will run out of nodes before rb; i.e. maxlb <= maxrb
+   ldr nextL,[lb,gNxt]    //begin loading lb->next
+   ldr nextR,[rb,gNxt]    //begin loading rb->next
+   subs nr,#1             //pre-subtract 1 from nr, saving me a cmp nr,#1 later
+   //Pre-subtracting from nl unnecessary, since I check nl against both 1
+   //   and 0 in my loops
+   cmp nl,#1              //if (nl > 1)
+      it GT
+      ldrGT nextLV,[nextL,gI]//load lb->next->len safely
+   //It is impossible for rb to have only one element. If this were true, then
+   //   since maxlb <= (maxrb = minrb), mrgSortR would have handled this case.
+   //   This means I get to load nextRV without checking if nr is zero.
+   ldr nextRV,[nextR,gI]  //load rb->next->len
    //Initialize base pointer head
-   cmp vl,vr              //if(valLeft <= valRight)
-      bGT ELSE1
-      movs head,lb        //   head = lb; (set head of sorted list)
-      ldr lb,[lb,gNxt]    //   lb=lb->next; (increment lb)
-      movs curr,head      //   keep track of current pos w/o losing head ptr
-      cmp lb,#0           //   if(!lb)
-      bEQ DONE1           //      skip loop
-      ldr vl,[lb,gInt]    //   else update int value from lb
-      b LOOP2             //   begin loop
-   ELSE1:                 //else
-      movs head,rb        //   head = rb; (set head of sorted list)
-      ldr rb,[rb,gNxt]    //   rb=rb->next; (increment rb)
-      movs curr,head      //   keep track of current pos w/o losing head ptr
-      cmp rb,#0           //   if(!rb)
-      bEQ DONE2           //      skip loop
-      ldr vr,[rb,gInt]    //   else update int value from rb, begin loop
+   cmp vl,vr              //if(init_valLeft <= init_valRight)
+   bGT ELSE1
+   subs nl,#1             //   nL--
+   mov head,lb            //   head = lb; (set head of sorted list)
+   mov curr,lb            //   keep track of current pos w/o losing head ptr
+   mov lb,nextL           //   update lb to lb->next
+   mov vl,nextLV          //   update vl to lb->next->len
+   //Don't need to check if lb empty because that would mean lb has only one
+   //   element < minR. If this were true, then (minL=maxL) < minR, a case
+   //   which was already handled in mrgSortR.
+   ldr nextL,[nextL,gNxt] //   preload lb->next for next iteration
+   cmp nl,#1              //   if (nl > 1)
+      it GT
+      ldrGT nextLV,[nextL,gI]//preload lb->next->len safely
+   cmp vl,vr              //   if(valLeft <= valRight)
+   bLE CONT_L             //      continue appending left nodes
+                          //   else append right nodes
+   TAKE_R:
+      subs nr,#1             //nR--;
+      str rb,[curr,gNxt]     //set nxt node in sorted list = rb
+      mov curr,rb            //curr = rb; (set head of sorted list)
+      mov rb,nextR           //update rb to lb->next
+      mov vr,nextRV          //update vr to lb->next->len
+      //don't need to check for !rb because lb runs out of nodes first
+      ldr nextR,[nextR,gNxt] //preload rb->next for next iteration
+         it NE               //if(nR) (if there are nodes left)
+         ldrNE nextRV,[nextR,gI]//preload lb->next->len safely
+      cmp vl,vr              //if (vl <= vr)
+      bLE TAKE_L             //   append left nodes
+                             //else continue appending right nodes
+      CONT_R:
+         subs nr,#1             //nR--;
+         //don't need to set curr->next because rb already points to rb->next
+         mov curr,rb            //curr = rb;
+         mov rb,nextR           //update rb to rb->next
+         mov vr,nextRV          //update vr to rb->next->len
+         //don't need to check for !rb because lb runs out of nodes first
+         ldr nextR,[nextR,gNxt] //preload rb->next for next iteration
+            it NE               //if(nR) (if there are nodes left)
+            ldrNE nextRV,[nextR,gI]//preload lb->next->len safely
+         cmp vl,vr              //if (vl <= vr)
+         bLE TAKE_L             //   append left node
+      b CONT_R                  //else continue appending right nodes
 
-   LOOP2:
-      cmp vl,vr              //if(valLeft <= valRight)
-         bGT ELSE2
-         str lb,[curr,gNxt]  //   set nxt node in sorted list = lb
-         movs curr,lb        //   curr = lb; (curr=curr->next)
-         ldr lb,[lb,gNxt]    //   lb=lb->next;
-         cmp lb,#0           //   if(!lb)
-         bEQ DONE1           //      break;
-         ldr vl,[lb,gInt]    //   else update int value from lb
-         b LOOP2             //      continue;
-      ELSE2:                 //else if(valLeft > valRight)
-         str rb,[curr,gNxt]  //   set nxt node in sorted list = rb
-         movs curr,rb        //   curr = rb; (curr=curr->next)
-         ldr rb,[rb,gNxt]    //   rb=rb->next;
-         cmp rb,#0           //   if(!rb)
-         bEQ DONE2           //      break;
-         ldr vr,[rb,gInt]    //   else update int value from rb
-b LOOP2                      //      continue;
+   ELSE1:                 //else if(init_valLeft > init_valRight)
+   subs nr,#1             //   nR--
+   mov head,rb            //   head = rb; (set head of sorted list)
+   mov curr,rb            //   keep track of current pos w/o losing head ptr
+   mov rb,nextR           //   update rb to rb->next
+   mov vr,nextRV          //   update vr to rb->next->len
+   //don't need to check for !rb because lb runs out of nodes first
+   ldr nextR,[nextR,gNxt] //   preload rb->next for next iteration
+      it NE               //   if (nR) (if there are nodes left)
+      ldrNE nextRV,[nextR,gI]//preload rb->next->len safely
+   cmp vl,vr              //   if(valLeft > valRight)
+   bGT CONT_R             //      continue appending right nodes
+                          //   else append left nodes
+   TAKE_L:
+      subs nl,#1             //nl--;
+      str lb,[curr,gNxt]     //set nxt node in sorted list = lb
+      mov curr,lb            //curr = lb;
+      bEQ CLEANUP            //if(!lb)   break;
+      mov lb,nextL           //update lb to lb->next
+      mov vl,nextLV          //update vl to lb->next->len
+      ldr nextL,[nextL,gNxt] //preload lb->next for next iteration
+      cmp nl,#1              //if (nl > 1)
+         it GT
+         ldrGT nextLV,[nextL,gI]//preload lb->next->len safely
+      cmp vl,vr              //if (vl > vr)
+      bGT TAKE_R             //   append right nodes
+                             //else continue appending left nodes
+      CONT_L:
+         subs nl,#1             //nl--;
+         //don't need to set curr->next because lb already points to lb->next
+         mov curr,lb            //curr = lb;
+         bEQ CLEANUP            //if(!lb)   break;
+         mov lb,nextL           //update lb to lb->next
+         mov vl,nextLV          //update vl to lb->next->len
+         ldr nextL,[nextL,gNxt] //preload lb->next for next iteration
+         cmp nl,#1              //if (nl > 1)
+            it GT
+            ldrGT nextLV,[nextL,gI]//preload lb->next->len safely
+         cmp vl,vr              //if (vl > vr)
+         bGT TAKE_R             //   append right nodes
+      b CONT_L                  //else continue appending left nodes
 
-DONE1:                    //occurs if(!lb) -> add rb to curr
+   CLEANUP:               //occurs if(!lb) -> add rb to curr
    str rb,[curr,gNxt]     //append rb to current node
    movs r0,head           //return head
-   pop {r7,r12}           //restore the rest of caller's variables
-bx LR                     //return head (in r0 already)
+pop {r7,r12,PC}           //restore the rest of caller's variables
 
-DONE2:                    //occurs if(!rb) -> add lb to curr
-   str lb,[curr,gNxt]     //append lb to current node
-   movs r0,head           //return head
-   pop {r7,r12}           //restore the rest of caller's variables
-bx LR                     //return head (in r0 already)

@@ -24,7 +24,8 @@ word_t *mrgChainsC
    word_t *lb,      //address of left base node
    word_t *rb,      //address of right base node
    int lbVal,       //val of first node of lb
-   int rbVal        //val of first node of rb
+   int rbVal,       //val of first node of rb
+   word_t *endL     //last node in lb
 )
 /*
  * Given two sorted lists started by lb & rb, returns merged and sorted list.
@@ -39,10 +40,11 @@ word_t *mrgChainsC
    word_t *nextL=lb->next, *nextR=rb->next;
    //variables for preloading nextL->len and nextR->len
    int nextLV,nextRV;
+   nR--;
    if(nL > 1)  //ensures we load nextL->len safely
       nextLV=nextL->len;
-   if(nR > 1)  //ensures we load nextR->len safely
-      nextRV=nextR->len;
+//   if(nR > 0)  //ensures we load nextR->len safely
+   nextRV=nextR->len;
    //initialize first item in new list by comparing left and right
    if(lbVal <= rbVal)
    {
@@ -65,7 +67,7 @@ word_t *mrgChainsC
       //don't need to check if rb is empty, lb empty before rb
       rbVal = nextRV;   //update rbVal
       nextR = nextR->next;  //begin loading next node into nextR
-      if(nR > 1)  //ensures we load nextR->len safely
+      if(nR > 0)  //ensures we load nextR->len safely
          nextRV=nextR->len;
    }
    curr = newListHead;
@@ -117,8 +119,20 @@ word_t *mrgChainsC
          rb = nextR;          //increment rb
          rbVal = nextRV;      //update rbVal
          nextR = nextR->next; //load next val of rb for subsequent loop iter
-         if(nR > 1)  //ensures we load nextR->len safely
+         if(nR > 0)  //ensures we load nextR->len safely
             nextRV=nextR->len;
+/*
+         if (nR == 0)         //if one node left (meaning the last node of list)
+         {
+            //At this point, there are remaining nodes in lb and one last node
+            //   in rb. Since lb needs to run out first, append lb to current.
+            //   Also, append the last node to endL.
+            curr->next = lb;  //append remaining nodes of lb
+            endL->next = rb;  //append last right node to endl
+            return newListHead;
+         }
+         nextRV=nextR->len;  //Otherwise, load nextR->len safely
+*/       
          //If rbVal < lbVal, don't need to set the next pointer b/c curr-next
          //   already points to the next item in rb.
          //Can't be <= or else there's a chance rb runs out of nodes first
@@ -130,8 +144,19 @@ word_t *mrgChainsC
             rb = nextR;       //increment rb
             rbVal = nextRV;   //update rbVal
             nextR = nextR->next; //load next val of rb for subsequent loop iter
-            if(nR > 1)  //ensures we load nextR->len safely
+            if(nR > 0)  //ensures we load nextR->len safely
                nextRV=nextR->len;
+/*
+            if (nR == 0)         //if one node left (meaning the last node of list)
+            {
+               //At this point, there are remaining nodes in lb and one last node
+               //   in rb. Since lb needs to run out first, append lb to current.
+               //   Also, append the last node to endL.
+               curr->next = lb;  //append remaining nodes of lb
+               endL->next = rb;  //append last right node to endl
+               return newListHead;
+            }
+*/
          }
       }
    } //end while
@@ -241,7 +266,7 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
       //call mrgChains with lb and rb swapped
       #ifdef THUMB_CHAINS
       #else
-      return mrgChainsC(rightHalf,leftHalf,rb,lb,minR,minL);
+      return mrgChainsC(rightHalf,leftHalf,rb,lb,minR,minL,endR);
       #endif
    }
    else
@@ -251,7 +276,7 @@ word_t *mrgSortRC   /* RETURNS: base of greatest-to-least ->len sorted list */
       //call mrgChains with lb and rb in standard order
       #ifdef THUMB_CHAINS
       #else
-      return mrgChainsC(leftHalf,rightHalf,lb,rb,minL,minR);
+      return mrgChainsC(leftHalf,rightHalf,lb,rb,minL,minR,endL);
       #endif
    }
 }
